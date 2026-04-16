@@ -74,6 +74,20 @@ Use this when Docker Desktop is installed but the engine does not start.
 6. Start API service:
    - `uvicorn app.main:app --host 0.0.0.0 --port 8000`
 
+### Pi-Local Backend Option (Recommended For Intranet Kiosk Mode)
+
+Instead of keeping backend on Windows LAN, deploy backend directly on Pi:
+
+1. From Windows:
+   - `cd C:\Users\Abdulrazak Mustafa\Documents\HPH\hasnet-printhub\backend`
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-backend-from-windows.ps1 -PiHost hph-pi01.local -PiUser hasnet_pi -PostgresPassword "<strong-password>"`
+2. On Pi, point edge-agent to local backend:
+   - `BACKEND_BASE_URL=http://127.0.0.1:8000/api/v1`
+3. Restart services:
+   - `sudo systemctl restart hasnet-printhub-api hasnet-printhub-agent`
+4. Validate:
+   - `curl http://127.0.0.1:8000/healthz`
+
 ## 4. Raspberry Pi Manual Setup
 
 1. Flash Raspberry Pi OS Lite.

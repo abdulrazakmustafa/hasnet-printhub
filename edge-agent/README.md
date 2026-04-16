@@ -66,6 +66,9 @@ Useful switches:
 3. If backend returns relative `storage_key`, set:
    - `STORAGE_BASE_URL=https://<file-host-base-url>`
 
+If backend is hosted on the same Pi:
+- `BACKEND_BASE_URL=http://127.0.0.1:8000/api/v1`
+
 When `MOCK_PRINT=false`, the agent uses:
 - `lpstat` to inspect printer status,
 - `lp` to submit print jobs.

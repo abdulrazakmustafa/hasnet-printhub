@@ -37,3 +37,6 @@ hasnet-printhub/
    - `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
 
 Docs: see `docs/manual-steps.md` for all manual setup actions (DNS, SSL, SMTP, payment provider credentials, and Raspberry Pi prep).
+
+For intranet-first rollout where customer flow runs fully on Pi, use:
+- `docs/pi-local-hosting-runbook.md`
