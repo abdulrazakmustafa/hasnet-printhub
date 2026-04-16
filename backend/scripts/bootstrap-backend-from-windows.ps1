@@ -22,7 +22,7 @@ function ConvertTo-BashSingleQuoted {
         [string]$Value
     )
 
-    return "'" + ($Value -replace "'", "'\"'\"'") + "'"
+    return "'" + $Value.Replace("'", "'""'""'") + "'"
 }
 
 function Invoke-CheckedExternal {
