@@ -16,6 +16,15 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function ConvertTo-BashSingleQuoted {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+
+    return "'" + ($Value -replace "'", "'\"'\"'") + "'"
+}
+
 function Invoke-CheckedExternal {
     param(
         [Parameter(Mandatory = $true)]
@@ -45,6 +54,13 @@ if ([string]::IsNullOrWhiteSpace($RemoteProjectDir)) {
     $RemoteProjectDir = "/home/$PiUser/hasnet-printhub"
 }
 $remoteBackendDir = "$RemoteProjectDir/backend"
+$qRemoteProjectDir = ConvertTo-BashSingleQuoted -Value $RemoteProjectDir
+$qRemoteBackendDir = ConvertTo-BashSingleQuoted -Value $remoteBackendDir
+$qPiUser = ConvertTo-BashSingleQuoted -Value $PiUser
+$qPostgresDb = ConvertTo-BashSingleQuoted -Value $PostgresDb
+$qPostgresUser = ConvertTo-BashSingleQuoted -Value $PostgresUser
+$qPostgresPassword = ConvertTo-BashSingleQuoted -Value $PostgresPassword
+$qBindHost = ConvertTo-BashSingleQuoted -Value $BindHost
 
 Write-Host "Checking SSH connectivity to $target ..."
 Invoke-CheckedExternal -FilePath "ssh" -Arguments @($target, "echo connected") -FailureMessage "SSH connectivity check failed"
@@ -82,13 +98,13 @@ try {
     Write-Host "Extracting backend on Pi ..."
     Invoke-CheckedExternal -FilePath "ssh" -Arguments @(
         $target,
-        "rm -rf $remoteBackendDir && tar -xzf $RemoteProjectDir/backend.tgz -C $RemoteProjectDir && rm -f $RemoteProjectDir/backend.tgz"
+        "rm -rf $qRemoteBackendDir && tar -xzf $qRemoteProjectDir/backend.tgz -C $qRemoteProjectDir && rm -f $qRemoteProjectDir/backend.tgz"
     ) -FailureMessage "Failed to extract backend archive on Pi"
 
     $installSystemd = if ($NoSystemd) { "0" } else { "1" }
     $remoteInstallCmd = @(
-        "chmod +x $remoteBackendDir/scripts/install-backend-on-pi.sh",
-        "sudo $remoteBackendDir/scripts/install-backend-on-pi.sh --backend-dir $remoteBackendDir --backend-user $PiUser --postgres-db $PostgresDb --postgres-user $PostgresUser --postgres-password $PostgresPassword --bind-host $BindHost --port $Port --install-systemd $installSystemd"
+        "chmod +x $qRemoteBackendDir/scripts/install-backend-on-pi.sh",
+        "sudo $qRemoteBackendDir/scripts/install-backend-on-pi.sh --backend-dir $qRemoteBackendDir --backend-user $qPiUser --postgres-db $qPostgresDb --postgres-user $qPostgresUser --postgres-password $qPostgresPassword --bind-host $qBindHost --port $Port --install-systemd $installSystemd"
     ) -join " && "
 
     Write-Host "Running backend installer on Pi (sudo may prompt for password) ..."
