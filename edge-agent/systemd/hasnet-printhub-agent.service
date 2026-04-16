@@ -1,0 +1,17 @@
+[Unit]
+Description=Hasnet PrintHub Edge Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/edge-agent
+EnvironmentFile=/home/pi/edge-agent/.env
+ExecStart=/home/pi/edge-agent/.venv/bin/python /home/pi/edge-agent/agent.py
+Restart=always
+RestartSec=5
+User=pi
+Group=pi
+
+[Install]
+WantedBy=multi-user.target
