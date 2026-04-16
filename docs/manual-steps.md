@@ -64,6 +64,9 @@ Use this when Docker Desktop is installed but the engine does not start.
    - `.venv\Scripts\activate` (Windows) or `source .venv/bin/activate` (Linux)
    - `pip install -r requirements.txt`
 3. Copy `.env.example` to `.env`.
+   - Keep payment reconciliation enabled for prototype reliability:
+     - `PAYMENT_RECONCILE_ENABLED=true`
+     - `PAYMENT_RECONCILE_INTERVAL_SECONDS=30`
 4. Start Postgres:
    - `docker compose up -d`
 5. Apply DB migration:
@@ -88,6 +91,14 @@ Use this when Docker Desktop is installed but the engine does not start.
 11. Save additional Wi-Fi networks for multi-site operation:
    - `cd ~/edge-agent`
    - `sudo ./scripts/add-wifi-profile.sh --ssid "<site-ssid>" --psk "<site-password>" --country TZ --priority 30`
+12. Lock down print path to prevent direct user printing:
+   - `cd ~/edge-agent`
+   - `sudo ./scripts/lockdown-print-path.sh --enable-ufw 1 --allow-ssh-cidr "<admin-cidr>"`
+13. Separate networks:
+   - Printer + Pi on operator-only SSID/VLAN.
+   - Kiosk users on a different SSID/VLAN with no route to printer IP.
+14. On printer settings panel:
+   - disable Wi-Fi Direct / hotspot printing features.
 
 ## 5. Payment Webhook Manual Setup
 

@@ -5,6 +5,9 @@ AGENT_DIR="/home/pi/edge-agent"
 AGENT_USER="pi"
 INSTALL_SYSTEMD="1"
 INSTALL_AVAHI="1"
+LOCKDOWN_PRINT_PATH="0"
+ENABLE_UFW_LOCKDOWN="0"
+ALLOW_SSH_CIDR=""
 
 usage() {
   cat <<'USAGE'
@@ -16,6 +19,11 @@ Options:
   --agent-user <username>    Linux user that owns/runs the agent (default: pi)
   --install-systemd <0|1>    Install and start systemd service (default: 1)
   --install-avahi <0|1>      Install avahi-daemon for *.local discovery (default: 1)
+  --lockdown-print-path <0|1>
+                              Run CUPS lock-down script after install (default: 0)
+  --enable-ufw-lockdown <0|1>
+                              Enable UFW + block IPP from LAN (default: 0)
+  --allow-ssh-cidr <cidr>    Optional CIDR allowed to SSH when UFW is enabled
   -h, --help                 Show this help text
 USAGE
 }
@@ -36,6 +44,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --install-avahi)
       INSTALL_AVAHI="$2"
+      shift 2
+      ;;
+    --lockdown-print-path)
+      LOCKDOWN_PRINT_PATH="$2"
+      shift 2
+      ;;
+    --enable-ufw-lockdown)
+      ENABLE_UFW_LOCKDOWN="$2"
+      shift 2
+      ;;
+    --allow-ssh-cidr)
+      ALLOW_SSH_CIDR="$2"
       shift 2
       ;;
     -h|--help)
@@ -113,6 +133,25 @@ EOF
   systemctl --no-pager --full status hasnet-printhub-agent | sed -n '1,20p'
 else
   echo "[4/4] Skipping systemd installation."
+fi
+
+if [[ "$LOCKDOWN_PRINT_PATH" == "1" ]]; then
+  echo "[extra] Applying print-path lock-down..."
+  LOCKDOWN_SCRIPT="$AGENT_DIR/scripts/lockdown-print-path.sh"
+  if [[ ! -x "$LOCKDOWN_SCRIPT" ]]; then
+    chmod +x "$LOCKDOWN_SCRIPT" || true
+  fi
+  if [[ ! -f "$LOCKDOWN_SCRIPT" ]]; then
+    echo "Lock-down script not found: $LOCKDOWN_SCRIPT" >&2
+    exit 1
+  fi
+
+  lockdown_args=(--enable-ufw "$ENABLE_UFW_LOCKDOWN")
+  if [[ -n "$ALLOW_SSH_CIDR" ]]; then
+    lockdown_args+=(--allow-ssh-cidr "$ALLOW_SSH_CIDR")
+  fi
+
+  "$LOCKDOWN_SCRIPT" "${lockdown_args[@]}"
 fi
 
 echo "Edge-agent install complete."

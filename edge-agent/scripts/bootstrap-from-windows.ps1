@@ -16,6 +16,9 @@ param(
     [string]$FirmwareVersion = "raspi-os-bookworm",
     [string]$PrinterName = "",
     [string]$StorageBaseUrl = "",
+    [switch]$LockdownPrintPath,
+    [switch]$EnableUfwLockdown,
+    [string]$AllowSshCidr = "",
     [switch]$SkipBackendHealthCheck,
     [switch]$NoSystemd,
     [switch]$NoAvahi
@@ -106,6 +109,11 @@ Invoke-CheckedExternal -FilePath "scp" -Arguments @(
     "${target}:$remoteAgentDir/scripts/add-wifi-profile.sh"
 ) -FailureMessage "Failed to copy Wi-Fi profile script"
 
+Invoke-CheckedExternal -FilePath "scp" -Arguments @(
+    (Join-Path $edgeAgentDir "scripts\lockdown-print-path.sh"),
+    "${target}:$remoteAgentDir/scripts/lockdown-print-path.sh"
+) -FailureMessage "Failed to copy lock-down script"
+
 $tempEnvPath = Join-Path $env:TEMP ("hph-edge-agent-{0}.env" -f ([Guid]::NewGuid().ToString("N")))
 $envContent = @(
     "BACKEND_BASE_URL=$backendUrl"
@@ -141,10 +149,20 @@ $installSystemd = if ($NoSystemd) { "0" } else { "1" }
 $installAvahi = if ($NoAvahi) { "0" } else { "1" }
 
 Write-Host "Running Pi installer (this may prompt for sudo password) ..."
+$installCmd = "sudo $remoteAgentDir/scripts/install-on-pi.sh --agent-dir $remoteAgentDir --agent-user $PiUser --install-systemd $installSystemd --install-avahi $installAvahi"
+if ($LockdownPrintPath) {
+    $installCmd += " --lockdown-print-path 1"
+    $installCmd += " --enable-ufw-lockdown $([int]$EnableUfwLockdown)"
+    if ($AllowSshCidr) {
+        $installCmd += " --allow-ssh-cidr $AllowSshCidr"
+    }
+}
+
 $remoteInstallCmd = @(
     "chmod +x $remoteAgentDir/scripts/install-on-pi.sh"
     "chmod +x $remoteAgentDir/scripts/add-wifi-profile.sh"
-    "sudo $remoteAgentDir/scripts/install-on-pi.sh --agent-dir $remoteAgentDir --agent-user $PiUser --install-systemd $installSystemd --install-avahi $installAvahi"
+    "chmod +x $remoteAgentDir/scripts/lockdown-print-path.sh"
+    $installCmd
 ) -join " && "
 
 Invoke-CheckedExternal -FilePath "ssh" -Arguments @("-tt", $target, $remoteInstallCmd) -FailureMessage "Pi install script failed"

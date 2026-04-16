@@ -9,7 +9,7 @@ param(
     [double]$BwPricePerPage = 100,
     [double]$ColorPricePerPage = 300,
     [string]$Currency = "TZS",
-    [string]$StorageKey = "http://192.168.0.210:8000/api/v1/test-assets/payment-success-test.pdf",
+    [string]$StorageKey = "",
     [string]$OriginalFileName = "payment-success-test.pdf"
 )
 
@@ -19,6 +19,25 @@ if ([string]::IsNullOrWhiteSpace($Msisdn)) {
     $Msisdn = Read-Host "Enter customer phone number in 255XXXXXXXXX format"
 }
 $Msisdn = $Msisdn.Trim()
+
+$ApiBaseUrl = $ApiBaseUrl.TrimEnd("/")
+if ([string]::IsNullOrWhiteSpace($StorageKey)) {
+    $apiUri = [Uri]$ApiBaseUrl
+    $storageHost = $apiUri.Host
+    if ($storageHost -eq "127.0.0.1" -or $storageHost -eq "localhost") {
+        $lanConfig = Get-NetIPConfiguration |
+            Where-Object { $_.IPv4DefaultGateway -and $_.IPv4Address } |
+            Select-Object -First 1
+        if ($null -eq $lanConfig) {
+            throw "Could not auto-detect LAN IP for StorageKey. Pass -StorageKey explicitly."
+        }
+        $storageHost = $lanConfig.IPv4Address.IPAddress
+    }
+
+    $apiPath = $apiUri.AbsolutePath.TrimEnd("/")
+    $portPart = if ($apiUri.IsDefaultPort) { "" } else { ":$($apiUri.Port)" }
+    $StorageKey = "{0}://{1}{2}{3}/test-assets/payment-success-test.pdf" -f $apiUri.Scheme, $storageHost, $portPart, $apiPath
+}
 
 if ($Pages -le 0 -or $Copies -le 0) {
     throw "Pages and copies must both be greater than zero."

@@ -52,6 +52,9 @@ Useful switches:
 - `-NoSystemd` to skip service install and run manually.
 - `-NoAvahi` to skip `avahi-daemon`.
 - `-SkipBackendHealthCheck` if backend is intentionally offline.
+- `-LockdownPrintPath` to lock CUPS to local Pi only after bootstrap.
+- `-EnableUfwLockdown` to also block LAN IPP/mDNS on Pi firewall.
+- `-AllowSshCidr "192.168.0.0/24"` to limit SSH source range when UFW is enabled.
 
 ## Real Printer Mode (Raspberry Pi + CUPS)
 
@@ -90,6 +93,28 @@ Notes:
 - You can run this multiple times to save multiple sites.
 - Higher `--priority` wins when multiple known networks are available.
 - Script updates `/etc/wpa_supplicant/wpa_supplicant.conf` safely and reconfigures Wi-Fi.
+
+## Printer Access Lock-Down (Prevent Payment Bypass)
+
+Use script:
+- `scripts/lockdown-print-path.sh`
+
+Example on Pi:
+
+```bash
+cd ~/edge-agent
+sudo ./scripts/lockdown-print-path.sh --enable-ufw 1 --allow-ssh-cidr "192.168.0.0/24"
+```
+
+What this enforces:
+- CUPS remote admin disabled
+- printer sharing disabled
+- optional firewall block for inbound IPP (`631/tcp`) and mDNS (`5353/udp`) to Pi
+
+Still required at network level:
+- Put printer on operator-only SSID/VLAN (Pi + printer only).
+- Keep kiosk users on a separate SSID/VLAN with no route to printer IP.
+- Disable printer Wi-Fi Direct/hotspot mode.
 
 ## systemd Setup (Pi)
 

@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     upload_max_mb: int = 10
     default_currency: str = "TZS"
     payment_provider: str = "mixx"
+    payment_reconcile_enabled: bool = True
+    payment_reconcile_interval_seconds: int = 30
+    payment_reconcile_batch_limit: int = 25
+    payment_reconcile_startup_delay_seconds: int = 5
 
     snippe_base_url: str = ""
     snippe_api_key: str = ""
@@ -52,6 +56,27 @@ class Settings(BaseSettings):
         if normalized not in {"snippe", "mixx"}:
             raise ValueError("PAYMENT_PROVIDER must be either 'snippe' or 'mixx'.")
         return normalized
+
+    @field_validator("payment_reconcile_interval_seconds")
+    @classmethod
+    def validate_reconcile_interval(cls, value: int) -> int:
+        if value < 5:
+            raise ValueError("PAYMENT_RECONCILE_INTERVAL_SECONDS must be >= 5.")
+        return value
+
+    @field_validator("payment_reconcile_batch_limit")
+    @classmethod
+    def validate_reconcile_batch_limit(cls, value: int) -> int:
+        if value < 1 or value > 100:
+            raise ValueError("PAYMENT_RECONCILE_BATCH_LIMIT must be between 1 and 100.")
+        return value
+
+    @field_validator("payment_reconcile_startup_delay_seconds")
+    @classmethod
+    def validate_reconcile_startup_delay(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("PAYMENT_RECONCILE_STARTUP_DELAY_SECONDS must be >= 0.")
+        return value
 
 
 settings = Settings()
