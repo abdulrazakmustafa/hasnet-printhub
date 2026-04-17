@@ -32,6 +32,14 @@ if (-not (Test-Path -LiteralPath $piScriptPath)) {
     throw "Pi investigation script not found: $piScriptPath"
 }
 
+$quoteBashLiteral = {
+    param([string]$Value)
+    if ($null -eq $Value) {
+        return "''"
+    }
+    return "'" + ($Value -replace "'", "'""'""'") + "'"
+}
+
 $remoteArgs = @(
     "--provider-request-id", $ProviderRequestId,
     "--api-base-url", $RemoteApiBaseUrl,
@@ -56,13 +64,14 @@ $scriptContent = $scriptContent -replace "`r", "`n"
 $scriptBytes = [System.Text.Encoding]::UTF8.GetBytes($scriptContent)
 $scriptB64 = [Convert]::ToBase64String($scriptBytes)
 
-$remoteExec = 'script_b64="$1"; shift; printf ''%s'' "$script_b64" | base64 -d | bash -s -- "$@"'
-$sshArgs = @("-T", "$PiUser@$PiHost", "sh", "-c", $remoteExec, "sh", $scriptB64) + $remoteArgs
+$quotedArgs = $remoteArgs | ForEach-Object { & $quoteBashLiteral $_ }
+$scriptB64Literal = & $quoteBashLiteral $scriptB64
+$remoteCommand = "printf '%s' $scriptB64Literal | base64 -d | bash -s -- " + ($quotedArgs -join " ")
 
 Write-Host "Running Pi-native investigation script over SSH ..." -ForegroundColor Cyan
 Write-Host ("Target: {0}@{1}" -f $PiUser, $PiHost) -ForegroundColor DarkCyan
 
-& $SshExe @sshArgs
+& $SshExe -T "$PiUser@$PiHost" $remoteCommand
 
 if ($LASTEXITCODE -ne 0) {
     throw "Remote investigation failed with exit code $LASTEXITCODE."
