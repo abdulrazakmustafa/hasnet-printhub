@@ -137,3 +137,4 @@ Instead of keeping backend on Windows LAN, deploy backend directly on Pi:
 3. Rotate payment and SMTP credentials every 90 days.
 4. Monitor uptime, queue depth, and failed jobs.
 5. Keep a printer consumables replacement schedule per site.
+6. For delayed payment incidents, follow `docs/payment-pending-operator-runbook.md`.

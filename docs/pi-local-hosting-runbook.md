@@ -57,6 +57,7 @@ sudo systemctl status hasnet-printhub-agent --no-pager
 No payment confirmation, no print:
 - jobs dispatch only when `payment_status=confirmed`
 - pending payments are reconciled by scheduler/manual reconcile endpoint
+- operator incident flow for delayed pending states: see `docs/payment-pending-operator-runbook.md`
 
 ## 7. Pending Validation (Do Not Forget)
 
