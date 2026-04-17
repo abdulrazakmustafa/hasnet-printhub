@@ -27,7 +27,18 @@ _WEBHOOK_MAX_SKEW_SECONDS = 300
 
 
 def _normalize_msisdn(msisdn: str) -> str:
-    return msisdn.strip().replace(" ", "")
+    normalized = msisdn.strip().replace(" ", "").replace("-", "")
+    if normalized.startswith("00"):
+        normalized = "+" + normalized[2:]
+
+    digits = normalized[1:] if normalized.startswith("+") else normalized
+    if not digits.isdigit() or len(digits) < 10 or len(digits) > 15:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid MSISDN format. Use 10 to 15 digits (optional leading +).",
+        )
+
+    return normalized
 
 
 def _map_method(method: str) -> PaymentMethod:
@@ -128,7 +139,68 @@ def _parse_json_response(response: httpx.Response) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {"raw": parsed}
 
 
+def _validate_payment_request_state(
+    payload: PaymentCreateRequest,
+    print_job: "PrintJob",
+    latest_pending_payment: "Payment | None",
+) -> None:
+    amount = round(payload.amount, 2)
+    expected_amount = round(float(print_job.total_cost), 2)
+    if abs(amount - expected_amount) > 0.01:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Payment amount must match job total ({expected_amount:.2f} {print_job.currency}).",
+        )
+
+    if print_job.status in {JobStatus.paid, JobStatus.queued, JobStatus.dispatched, JobStatus.printing, JobStatus.printed}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Payment cannot be created because this job is already paid or in print workflow.",
+        )
+
+    if print_job.payment_status == PaymentStatus.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Payment already confirmed for this print job.",
+        )
+
+    if latest_pending_payment is not None:
+        pending_ref = latest_pending_payment.provider_request_id or "unknown"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "A pending payment already exists for this print job "
+                f"(provider_request_id={pending_ref}). Reconcile before creating another."
+            ),
+        )
+
+
+def _validate_payment_request_context(payload: PaymentCreateRequest, db: Session) -> None:
+    from app.models.payment import Payment
+    from app.models.print_job import PrintJob
+
+    print_job = db.get(PrintJob, payload.print_job_id)
+    if print_job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Print job not found.")
+
+    latest_pending_payment = (
+        db.execute(
+            select(Payment)
+            .where(
+                Payment.print_job_id == payload.print_job_id,
+                Payment.status == PaymentStatus.pending,
+            )
+            .order_by(Payment.requested_at.desc(), Payment.created_at.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    _validate_payment_request_state(payload=payload, print_job=print_job, latest_pending_payment=latest_pending_payment)
+
+
 def create_payment(payload: PaymentCreateRequest, db: Session) -> PaymentCreateResponse:
+    _validate_payment_request_context(payload=payload, db=db)
     provider = _active_payment_provider()
     if provider == "mixx":
         return create_mixx_payment(payload=payload, db=db)
