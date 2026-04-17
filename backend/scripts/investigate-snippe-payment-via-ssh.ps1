@@ -48,14 +48,16 @@ if (-not [string]::IsNullOrWhiteSpace($SaveEvidencePath)) {
     $remoteArgs += @("--save-evidence-path", $SaveEvidencePath)
 }
 
-# Use non-interactive SSH (-T) so streamed script content is not echoed back line-by-line.
-$sshArgs = @("-T", "$PiUser@$PiHost", "bash", "-s", "--") + $remoteArgs
+# Use non-interactive SSH (-T) and strip CR on remote stdin before executing via bash.
+# Pattern: sh -c '<cmd>' sh <arg1> <arg2> ... so "$@" is preserved safely.
+$remoteExec = 'tr -d ''\r'' | bash -s -- "$@"'
+$sshArgs = @("-T", "$PiUser@$PiHost", "sh", "-c", $remoteExec, "sh") + $remoteArgs
 
 Write-Host "Running Pi-native investigation script over SSH ..." -ForegroundColor Cyan
 Write-Host ("Target: {0}@{1}" -f $PiUser, $PiHost) -ForegroundColor DarkCyan
 
 $scriptContent = Get-Content -Path $piScriptPath -Raw
-# Ensure bash on Pi receives Unix newlines only; CRLF can cause "$'\r': command not found".
+# Ensure we don't inject Windows CR into the streamed payload.
 $scriptContent = $scriptContent -replace "`r`n", "`n"
 $scriptContent = $scriptContent -replace "`r", "`n"
 $scriptContent | & $SshExe @sshArgs
