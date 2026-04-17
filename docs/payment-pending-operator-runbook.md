@@ -36,7 +36,20 @@ Use this when customer payment stays `pending` and the print is not released.
 
 ```powershell
 cd "C:\Users\Abdulrazak Mustafa\Documents\HPH\hasnet-printhub\backend"
-powershell -ExecutionPolicy Bypass -File ".\scripts\investigate-snippe-payment.ps1" -ProviderRequestId "SN<YOUR_REF>" -ApiBaseUrl "http://hph-pi01.local:8000/api/v1"
+powershell -ExecutionPolicy Bypass -File ".\scripts\investigate-snippe-payment-via-ssh.ps1" -ProviderRequestId "SN<YOUR_REF>" -RemoteApiBaseUrl "http://127.0.0.1:8000/api/v1"
+```
+
+Legacy command compatibility:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\scripts\investigate-snippe-payment.ps1" -ProviderRequestId "SN<YOUR_REF>" -ApiBaseUrl "http://127.0.0.1:8000/api/v1"
+```
+
+Direct on Pi (if already SSH'd in):
+
+```bash
+cd /home/hasnet_pi/hasnet-printhub/backend
+bash ./scripts/investigate-snippe-payment-on-pi.sh --provider-request-id SN<YOUR_REF> --api-base-url http://127.0.0.1:8000/api/v1
 ```
 
 ### A) Reconcile pending payments
