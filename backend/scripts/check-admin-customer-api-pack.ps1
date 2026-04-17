@@ -54,12 +54,22 @@ if (-not [string]::IsNullOrWhiteSpace($JobId)) {
     }
 
     $jobUrl = "$ApiBaseUrl/print-jobs/$parsedJob/customer-status"
+    $receiptUrl = "$ApiBaseUrl/print-jobs/$parsedJob/customer-receipt"
     Write-Host ""
     Write-Host ("GET {0}" -f $jobUrl) -ForegroundColor DarkCyan
     $jobStatus = Invoke-RestMethod -Method GET -Uri $jobUrl
+    Write-Host ("- customer_contract: {0}" -f $jobStatus.contract_version)
     Write-Host ("- customer_stage: {0}" -f $jobStatus.stage)
     Write-Host ("- customer_message: {0}" -f $jobStatus.message)
     Write-Host ("- customer_next_action: {0}" -f $jobStatus.next_action)
+    Write-Host ("- customer_timeline_events: {0}" -f (@($jobStatus.timeline).Count))
+
+    Write-Host ""
+    Write-Host ("GET {0}" -f $receiptUrl) -ForegroundColor DarkCyan
+    $jobReceipt = Invoke-RestMethod -Method GET -Uri $receiptUrl
+    Write-Host ("- receipt_contract: {0}" -f $jobReceipt.contract_version)
+    Write-Host ("- receipt_headline: {0}" -f $jobReceipt.headline)
+    Write-Host ("- receipt_stage: {0}" -f $jobReceipt.stage)
 }
 
 Write-Host ""
@@ -70,5 +80,6 @@ Write-Host ("- /admin/payments: OK ({0} items)" -f (@($payments.items).Count))
 Write-Host "- /admin/reports/today: OK"
 if (-not [string]::IsNullOrWhiteSpace($JobId)) {
     Write-Host "- /print-jobs/{job_id}/customer-status: OK"
+    Write-Host "- /print-jobs/{job_id}/customer-receipt: OK"
 }
 Write-Host "Admin/customer API smoke completed." -ForegroundColor Green

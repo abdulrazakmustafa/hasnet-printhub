@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -9,7 +10,14 @@ from app.models.device import Device
 from app.models.enums import ColorMode, DeviceStatus, JobStatus, PaymentStatus, PrinterStatus
 from app.models.payment import Payment
 from app.models.print_job import PrintJob
-from app.schemas.print_job import PrintJobCreateRequest, PrintJobCreateResponse, PrintJobCustomerStatusResponse
+from app.schemas.print_job import (
+    CustomerPaymentReceipt,
+    CustomerTimelineEvent,
+    PrintJobCreateRequest,
+    PrintJobCreateResponse,
+    PrintJobCustomerReceiptResponse,
+    PrintJobCustomerStatusResponse,
+)
 from app.services.pricing import compute_total_cost
 
 router = APIRouter()
@@ -80,24 +88,28 @@ def create_quote(payload: PrintJobCreateRequest, db: Session = Depends(get_db)) 
     )
 
 
-@router.get("/{job_id}/customer-status", response_model=PrintJobCustomerStatusResponse)
-def get_customer_job_status(job_id: str, db: Session = Depends(get_db)) -> PrintJobCustomerStatusResponse:
+def _parse_job_id_or_422(job_id: str) -> uuid.UUID:
     try:
-        parsed_job_id = uuid.UUID(job_id.strip())
+        return uuid.UUID(job_id.strip())
     except (ValueError, AttributeError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid job id '{job_id}'.",
         ) from exc
 
+
+def _load_job_or_404(db: Session, parsed_job_id: uuid.UUID) -> PrintJob:
     job = db.get(PrintJob, parsed_job_id)
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Print job not found.")
+    return job
 
-    latest_payment = (
+
+def _load_latest_payment(db: Session, job_id: uuid.UUID) -> Payment | None:
+    return (
         db.execute(
             select(Payment)
-            .where(Payment.print_job_id == job.id)
+            .where(Payment.print_job_id == job_id)
             .order_by(Payment.requested_at.desc(), Payment.created_at.desc())
             .limit(1)
         )
@@ -105,6 +117,8 @@ def get_customer_job_status(job_id: str, db: Session = Depends(get_db)) -> Print
         .first()
     )
 
+
+def _resolve_customer_stage(job: PrintJob) -> tuple[str, str, str]:
     stage = "awaiting_payment"
     message = "Waiting for payment confirmation."
     next_action = "Approve payment prompt on phone or contact operator if delayed."
@@ -131,7 +145,129 @@ def get_customer_job_status(job_id: str, db: Session = Depends(get_db)) -> Print
         message = "Payment is pending provider confirmation."
         next_action = "Wait briefly, then operator can reconcile and recheck status."
 
+    return stage, message, next_action
+
+
+def _build_customer_receipt(payment: Payment | None) -> CustomerPaymentReceipt | None:
+    if payment is None:
+        return None
+
+    return CustomerPaymentReceipt(
+        payment_id=payment.id,
+        provider=payment.provider,
+        provider_request_id=payment.provider_request_id,
+        provider_transaction_ref=payment.provider_transaction_ref,
+        payment_status=payment.status.value,
+        amount=float(payment.amount),
+        currency=payment.currency,
+        requested_at=payment.requested_at,
+        confirmed_at=payment.confirmed_at,
+        webhook_received_at=payment.webhook_received_at,
+        updated_at=payment.updated_at,
+    )
+
+
+def _build_customer_timeline(job: PrintJob, payment: Payment | None) -> list[CustomerTimelineEvent]:
+    events: list[CustomerTimelineEvent] = [
+        CustomerTimelineEvent(
+            code="job_created",
+            label="Document uploaded",
+            state="done",
+            at=job.created_at,
+            detail="Print job created and waiting for payment.",
+        )
+    ]
+
+    provider_ref = payment.provider_request_id if payment and payment.provider_request_id else None
+    payment_request_detail = (
+        f"Payment request created ({provider_ref})." if provider_ref else "Payment request created."
+    )
+    events.append(
+        CustomerTimelineEvent(
+            code="payment_requested",
+            label="Payment requested",
+            state="done" if payment is not None else "pending",
+            at=payment.requested_at if payment else None,
+            detail=payment_request_detail if payment else "Waiting for payment initiation.",
+        )
+    )
+
+    confirmation_state = "pending"
+    confirmation_detail = "Waiting for provider payment confirmation."
+    if job.payment_status == PaymentStatus.confirmed:
+        confirmation_state = "done"
+        confirmation_detail = "Payment confirmed."
+    elif job.payment_status in {PaymentStatus.failed, PaymentStatus.expired}:
+        confirmation_state = "blocked"
+        confirmation_detail = "Payment failed or expired."
+    elif job.payment_status == PaymentStatus.pending:
+        confirmation_state = "current"
+    events.append(
+        CustomerTimelineEvent(
+            code="payment_confirmed",
+            label="Payment confirmation",
+            state=confirmation_state,
+            at=job.paid_at or (payment.confirmed_at if payment else None),
+            detail=confirmation_detail,
+        )
+    )
+
+    dispatch_state = "pending"
+    dispatch_detail = "Printer dispatch starts after payment confirmation."
+    if job.status in {JobStatus.dispatched, JobStatus.printing, JobStatus.printed}:
+        dispatch_state = "done" if job.status == JobStatus.printed else "current"
+        dispatch_detail = "Print job dispatched to kiosk printer."
+    elif job.status in {JobStatus.paid, JobStatus.queued}:
+        dispatch_state = "current"
+        dispatch_detail = "Payment confirmed. Dispatch queue in progress."
+    elif job.status == JobStatus.failed:
+        dispatch_state = "blocked"
+        dispatch_detail = "Dispatch interrupted due to print failure."
+    events.append(
+        CustomerTimelineEvent(
+            code="print_dispatched",
+            label="Printer dispatch",
+            state=dispatch_state,
+            at=job.paid_at,
+            detail=dispatch_detail,
+        )
+    )
+
+    completion_state = "pending"
+    completion_detail = "Waiting for printer completion."
+    if job.status == JobStatus.printed:
+        completion_state = "done"
+        completion_detail = "Printing completed successfully."
+    elif job.status == JobStatus.failed:
+        completion_state = "blocked"
+        completion_detail = job.failure_reason or "Printer reported failure."
+    elif job.status in {JobStatus.printing, JobStatus.dispatched, JobStatus.queued, JobStatus.paid}:
+        completion_state = "current"
+    events.append(
+        CustomerTimelineEvent(
+            code="print_completed",
+            label="Printing completed",
+            state=completion_state,
+            at=job.printed_at,
+            detail=completion_detail,
+        )
+    )
+
+    return events
+
+
+@router.get("/{job_id}/customer-status", response_model=PrintJobCustomerStatusResponse)
+def get_customer_job_status(job_id: str, db: Session = Depends(get_db)) -> PrintJobCustomerStatusResponse:
+    parsed_job_id = _parse_job_id_or_422(job_id)
+    job = _load_job_or_404(db, parsed_job_id)
+    latest_payment = _load_latest_payment(db, job.id)
+
+    stage, message, next_action = _resolve_customer_stage(job)
+    timeline = _build_customer_timeline(job, latest_payment)
+    receipt = _build_customer_receipt(latest_payment)
+
     return PrintJobCustomerStatusResponse(
+        contract_version="customer-status-v1",
         job_id=job.id,
         stage=stage,
         message=message,
@@ -152,4 +288,48 @@ def get_customer_job_status(job_id: str, db: Session = Depends(get_db)) -> Print
         paid_at=job.paid_at,
         printed_at=job.printed_at,
         failure_reason=job.failure_reason,
+        timeline=timeline,
+        receipt=receipt,
+    )
+
+
+@router.get("/{job_id}/customer-receipt", response_model=PrintJobCustomerReceiptResponse)
+def get_customer_receipt(job_id: str, db: Session = Depends(get_db)) -> PrintJobCustomerReceiptResponse:
+    parsed_job_id = _parse_job_id_or_422(job_id)
+    job = _load_job_or_404(db, parsed_job_id)
+    latest_payment = _load_latest_payment(db, job.id)
+
+    stage, message, next_action = _resolve_customer_stage(job)
+    timeline = _build_customer_timeline(job, latest_payment)
+    receipt = _build_customer_receipt(latest_payment)
+
+    headline = "Payment/Print Receipt"
+    if stage == "completed":
+        headline = "Payment Success and Print Completed"
+    elif stage == "processing":
+        headline = "Payment Success - Printing In Progress"
+    elif stage == "payment_failed":
+        headline = "Payment Not Successful"
+    elif stage == "payment_pending":
+        headline = "Payment Pending Confirmation"
+
+    return PrintJobCustomerReceiptResponse(
+        contract_version="customer-receipt-v1",
+        job_id=job.id,
+        stage=stage,
+        headline=headline,
+        message=message,
+        next_action=next_action,
+        job_status=job.status.value,
+        payment_status=job.payment_status.value,
+        payment_method=job.payment_method.value if job.payment_method else None,
+        transaction_reference=job.transaction_reference,
+        total_cost=float(job.total_cost),
+        currency=job.currency,
+        pages=job.pages,
+        copies=job.copies,
+        color=job.color.value,
+        issued_at=datetime.now(timezone.utc),
+        timeline=timeline,
+        receipt=receipt,
     )

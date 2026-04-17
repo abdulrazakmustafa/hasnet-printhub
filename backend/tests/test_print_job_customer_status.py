@@ -73,22 +73,50 @@ def test_customer_status_returns_404_when_job_missing() -> None:
 
 def test_customer_status_returns_pending_stage() -> None:
     job = _build_job(PaymentStatus.pending, JobStatus.awaiting_payment)
-    payment = SimpleNamespace(provider="snippe", provider_request_id="SN123", provider_transaction_ref=None)
+    payment = SimpleNamespace(
+        id=uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+        provider="snippe",
+        provider_request_id="SN123",
+        provider_transaction_ref=None,
+        status=PaymentStatus.pending,
+        amount=500.0,
+        currency="TZS",
+        requested_at=None,
+        confirmed_at=None,
+        webhook_received_at=None,
+        updated_at=None,
+    )
     result = get_customer_job_status(str(job.id), db=_FakeDB(job=job, payment=payment))
 
+    assert result.contract_version == "customer-status-v1"
     assert result.stage == "payment_pending"
     assert result.payment_status == "pending"
     assert result.provider_request_id == "SN123"
+    assert result.receipt is not None
+    assert len(result.timeline) == 5
 
 
 def test_customer_status_returns_completed_stage() -> None:
     job = _build_job(PaymentStatus.confirmed, JobStatus.printed)
-    payment = SimpleNamespace(provider="snippe", provider_request_id="SN123", provider_transaction_ref="TRX9")
+    payment = SimpleNamespace(
+        id=uuid.UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+        provider="snippe",
+        provider_request_id="SN123",
+        provider_transaction_ref="TRX9",
+        status=PaymentStatus.confirmed,
+        amount=500.0,
+        currency="TZS",
+        requested_at=None,
+        confirmed_at=None,
+        webhook_received_at=None,
+        updated_at=None,
+    )
     result = get_customer_job_status(str(job.id), db=_FakeDB(job=job, payment=payment))
 
     assert result.stage == "completed"
     assert result.job_status == "printed"
     assert result.provider_transaction_ref == "TRX9"
+    assert result.timeline[-1].state == "done"
 
 
 def test_customer_status_returns_payment_failed_stage() -> None:

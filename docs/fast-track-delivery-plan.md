@@ -28,13 +28,14 @@ Date: 2026-04-17
 ### Track B: Customer Flow Productization
 
 1. Upload/quote/payment API hardening (file validation, limits, UX-safe errors).
-2. Receipt/confirmation artifacts (transaction id + job id + timestamps).
+2. Receipt/confirmation artifacts (transaction id + job id + timestamps). (Done)
 3. Retry-safe flow handling for delayed provider statuses.
 4. Clear customer messaging states via API response endpoint. (Done)
    - awaiting approval
    - confirmed
    - failed/cancelled
    - provider delay/escalated
+5. Freeze customer API contract for frontend integration. (Done)
 
 ### Track C: Operations + Go-Live Readiness
 
