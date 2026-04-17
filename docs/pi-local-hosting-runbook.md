@@ -57,3 +57,24 @@ sudo systemctl status hasnet-printhub-agent --no-pager
 No payment confirmation, no print:
 - jobs dispatch only when `payment_status=confirmed`
 - pending payments are reconciled by scheduler/manual reconcile endpoint
+
+## 7. Pending Validation (Do Not Forget)
+
+Status: open as of 2026-04-17
+
+Pending item:
+- Final onsite end-to-end print validation is pending because printer was not connected during latest payment-success test.
+
+Latest evidence already captured:
+- provider request id: `SN17764042709839827`
+- provider status: `completed`
+- provider completion window: ~32 seconds (`2026-04-17T05:37:50.983099Z` to `2026-04-17T05:38:23.161649Z`)
+
+Next onsite closeout:
+1. Reconnect printer and ensure CUPS reports `ready`.
+2. Run one fresh customer flow:
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\run-snippe-customer-flow.ps1 -ApiBaseUrl "http://hph-pi01.local:8000/api/v1" -Msisdn "255778415671" -Method "tigo"`
+3. Confirm sequence in real-time:
+   - payment success -> job assigned -> print starts automatically.
+4. Record:
+   - provider ref, approval time, print start time, and final job status.
