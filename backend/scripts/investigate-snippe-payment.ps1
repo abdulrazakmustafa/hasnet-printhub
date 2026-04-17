@@ -33,15 +33,16 @@ $reconcileOne = Invoke-Reconcile -BaseUrl $ApiBaseUrl -Limit $ReconcileLimit
 Write-Host ("Reconcile #1 => status={0}, synced={1}, limit={2}" -f $reconcileOne.status, $reconcileOne.synced, $reconcileOne.limit) -ForegroundColor Green
 
 Write-Host "Step 2/3: Query Snippe provider status on Pi ..." -ForegroundColor Cyan
-$remoteLines = @(
-    "ENV=/home/$PiUser/hasnet-printhub/backend/.env"
-    "BASE=`$(sed -n 's/^SNIPPE_BASE_URL=//p' `"$ENV`")"
-    "KEY=`$(sed -n 's/^SNIPPE_API_KEY=//p' `"$ENV`")"
-    "REF=$ProviderRequestId"
-    "curl -sS -H `"Authorization: Bearer $KEY`" `"$BASE/v1/payments/$REF`""
-)
-$remoteCmd = $remoteLines -join "; "
-$providerRaw = & $SshExe "$PiUser@$PiHost" $remoteCmd 2>&1
+$remoteScriptTemplate = @'
+set -euo pipefail
+ENV=/home/{0}/hasnet-printhub/backend/.env
+BASE=$(sed -n 's/^SNIPPE_BASE_URL=//p' "$ENV")
+KEY=$(sed -n 's/^SNIPPE_API_KEY=//p' "$ENV")
+REF="{1}"
+curl -sS -H "Authorization: Bearer $KEY" "$BASE/v1/payments/$REF"
+'@
+$remoteScript = [string]::Format($remoteScriptTemplate, $PiUser, $ProviderRequestId)
+$providerRaw = $remoteScript | & $SshExe "$PiUser@$PiHost" "bash -s" 2>&1
 if ($LASTEXITCODE -ne 0) {
     throw "SSH/provider query failed: $providerRaw"
 }
