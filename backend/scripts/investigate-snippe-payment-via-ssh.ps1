@@ -55,6 +55,9 @@ Write-Host "Running Pi-native investigation script over SSH ..." -ForegroundColo
 Write-Host ("Target: {0}@{1}" -f $PiUser, $PiHost) -ForegroundColor DarkCyan
 
 $scriptContent = Get-Content -Path $piScriptPath -Raw
+# Ensure bash on Pi receives Unix newlines only; CRLF can cause "$'\r': command not found".
+$scriptContent = $scriptContent -replace "`r`n", "`n"
+$scriptContent = $scriptContent -replace "`r", "`n"
 $scriptContent | & $SshExe @sshArgs
 
 if ($LASTEXITCODE -ne 0) {
