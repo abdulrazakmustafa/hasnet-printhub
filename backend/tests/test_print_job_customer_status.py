@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -48,7 +49,7 @@ def _build_job(payment_status: PaymentStatus, status_value: JobStatus):
         pages=12,
         copies=1,
         color=ColorMode.bw,
-        created_at=None,
+        created_at=datetime.now(timezone.utc),
         paid_at=None,
         printed_at=None,
         failure_reason=None,
@@ -94,6 +95,30 @@ def test_customer_status_returns_pending_stage() -> None:
     assert result.provider_request_id == "SN123"
     assert result.receipt is not None
     assert len(result.timeline) == 5
+
+
+def test_customer_status_returns_provider_delay_escalated_stage() -> None:
+    job = _build_job(PaymentStatus.pending, JobStatus.awaiting_payment)
+    payment = SimpleNamespace(
+        id=uuid.UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+        provider="snippe",
+        provider_request_id="SN_DELAYED",
+        provider_transaction_ref=None,
+        status=PaymentStatus.pending,
+        amount=500.0,
+        currency="TZS",
+        requested_at=datetime.now(timezone.utc) - timedelta(minutes=30),
+        confirmed_at=None,
+        webhook_received_at=None,
+        updated_at=None,
+    )
+
+    result = get_customer_job_status(str(job.id), db=_FakeDB(job=job, payment=payment))
+
+    assert result.stage == "provider_delay_escalated"
+    assert "reconcile" in result.next_action.lower()
+    assert result.timeline[2].detail is not None
+    assert "delayed" in result.timeline[2].detail.lower()
 
 
 def test_customer_status_returns_completed_stage() -> None:

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     payment_reconcile_interval_seconds: int = 30
     payment_reconcile_batch_limit: int = 25
     payment_reconcile_startup_delay_seconds: int = 5
+    customer_pending_escalation_minutes: int = 10
 
     snippe_base_url: str = ""
     snippe_api_key: str = ""
@@ -76,6 +77,13 @@ class Settings(BaseSettings):
     def validate_reconcile_startup_delay(cls, value: int) -> int:
         if value < 0:
             raise ValueError("PAYMENT_RECONCILE_STARTUP_DELAY_SECONDS must be >= 0.")
+        return value
+
+    @field_validator("customer_pending_escalation_minutes")
+    @classmethod
+    def validate_pending_escalation_minutes(cls, value: int) -> int:
+        if value < 1 or value > 1440:
+            raise ValueError("CUSTOMER_PENDING_ESCALATION_MINUTES must be between 1 and 1440.")
         return value
 
 

@@ -1,11 +1,12 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.config import settings
 from app.models.device import Device
 from app.models.enums import ColorMode, DeviceStatus, JobStatus, PaymentStatus, PrinterStatus
 from app.models.payment import Payment
@@ -118,7 +119,22 @@ def _load_latest_payment(db: Session, job_id: uuid.UUID) -> Payment | None:
     )
 
 
-def _resolve_customer_stage(job: PrintJob) -> tuple[str, str, str]:
+def _is_pending_provider_delay(job: PrintJob, payment: Payment | None) -> bool:
+    if job.payment_status != PaymentStatus.pending:
+        return False
+
+    pending_since = payment.requested_at if payment and payment.requested_at else job.created_at
+    if pending_since is None:
+        return False
+
+    if pending_since.tzinfo is None:
+        pending_since = pending_since.replace(tzinfo=timezone.utc)
+
+    escalation_window = timedelta(minutes=settings.customer_pending_escalation_minutes)
+    return datetime.now(timezone.utc) - pending_since >= escalation_window
+
+
+def _resolve_customer_stage(job: PrintJob, payment: Payment | None) -> tuple[str, str, str]:
     stage = "awaiting_payment"
     message = "Waiting for payment confirmation."
     next_action = "Approve payment prompt on phone or contact operator if delayed."
@@ -141,9 +157,14 @@ def _resolve_customer_stage(job: PrintJob) -> tuple[str, str, str]:
         message = "Payment was not successful."
         next_action = "Retry with a new payment transaction."
     elif job.payment_status == PaymentStatus.pending:
-        stage = "payment_pending"
-        message = "Payment is pending provider confirmation."
-        next_action = "Wait briefly, then operator can reconcile and recheck status."
+        if _is_pending_provider_delay(job, payment):
+            stage = "provider_delay_escalated"
+            message = "Payment confirmation is delayed at provider side."
+            next_action = "Operator should reconcile and verify provider reference status."
+        else:
+            stage = "payment_pending"
+            message = "Payment is pending provider confirmation."
+            next_action = "Wait briefly, then operator can reconcile and recheck status."
 
     return stage, message, next_action
 
@@ -167,7 +188,7 @@ def _build_customer_receipt(payment: Payment | None) -> CustomerPaymentReceipt |
     )
 
 
-def _build_customer_timeline(job: PrintJob, payment: Payment | None) -> list[CustomerTimelineEvent]:
+def _build_customer_timeline(job: PrintJob, payment: Payment | None, stage: str) -> list[CustomerTimelineEvent]:
     events: list[CustomerTimelineEvent] = [
         CustomerTimelineEvent(
             code="job_created",
@@ -200,6 +221,9 @@ def _build_customer_timeline(job: PrintJob, payment: Payment | None) -> list[Cus
     elif job.payment_status in {PaymentStatus.failed, PaymentStatus.expired}:
         confirmation_state = "blocked"
         confirmation_detail = "Payment failed or expired."
+    elif stage == "provider_delay_escalated":
+        confirmation_state = "current"
+        confirmation_detail = "Provider confirmation delayed. Operator reconciliation in progress."
     elif job.payment_status == PaymentStatus.pending:
         confirmation_state = "current"
     events.append(
@@ -262,8 +286,8 @@ def get_customer_job_status(job_id: str, db: Session = Depends(get_db)) -> Print
     job = _load_job_or_404(db, parsed_job_id)
     latest_payment = _load_latest_payment(db, job.id)
 
-    stage, message, next_action = _resolve_customer_stage(job)
-    timeline = _build_customer_timeline(job, latest_payment)
+    stage, message, next_action = _resolve_customer_stage(job, latest_payment)
+    timeline = _build_customer_timeline(job, latest_payment, stage)
     receipt = _build_customer_receipt(latest_payment)
 
     return PrintJobCustomerStatusResponse(
@@ -299,8 +323,8 @@ def get_customer_receipt(job_id: str, db: Session = Depends(get_db)) -> PrintJob
     job = _load_job_or_404(db, parsed_job_id)
     latest_payment = _load_latest_payment(db, job.id)
 
-    stage, message, next_action = _resolve_customer_stage(job)
-    timeline = _build_customer_timeline(job, latest_payment)
+    stage, message, next_action = _resolve_customer_stage(job, latest_payment)
+    timeline = _build_customer_timeline(job, latest_payment, stage)
     receipt = _build_customer_receipt(latest_payment)
 
     headline = "Payment/Print Receipt"
@@ -312,6 +336,8 @@ def get_customer_receipt(job_id: str, db: Session = Depends(get_db)) -> PrintJob
         headline = "Payment Not Successful"
     elif stage == "payment_pending":
         headline = "Payment Pending Confirmation"
+    elif stage == "provider_delay_escalated":
+        headline = "Provider Delay - Verification In Progress"
 
     return PrintJobCustomerReceiptResponse(
         contract_version="customer-receipt-v1",

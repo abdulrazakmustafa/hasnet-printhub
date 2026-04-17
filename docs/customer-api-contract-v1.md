@@ -30,6 +30,16 @@ This document freezes the customer payload contract for frontend integration.
 12. `timeline[]` (ordered events)
 13. `receipt` (nullable when no payment record exists yet)
 
+## Stable Stage Values (Customer Status/Receipt)
+
+1. `awaiting_payment`
+2. `payment_pending`
+3. `provider_delay_escalated` (pending beyond escalation window; operator reconciliation expected)
+4. `payment_confirmed`
+5. `processing`
+6. `completed`
+7. `payment_failed`
+
 ## Timeline Event Shape
 
 Each item in `timeline`:

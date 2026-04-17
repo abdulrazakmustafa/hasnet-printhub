@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -48,7 +49,7 @@ def _build_job(payment_status: PaymentStatus, status_value: JobStatus):
         pages=12,
         copies=1,
         color=ColorMode.bw,
-        created_at=None,
+        created_at=datetime.now(timezone.utc),
         paid_at=None,
         printed_at=None,
         failure_reason=None,
@@ -64,7 +65,7 @@ def _build_payment(status_value: PaymentStatus):
         status=status_value,
         amount=500.0,
         currency="TZS",
-        requested_at=None,
+        requested_at=datetime.now(timezone.utc),
         confirmed_at=None,
         webhook_received_at=None,
         updated_at=None,
@@ -107,3 +108,14 @@ def test_customer_receipt_payment_pending_shape() -> None:
 
     assert result.stage == "payment_pending"
     assert result.headline == "Payment Pending Confirmation"
+
+
+def test_customer_receipt_provider_delay_escalated_shape() -> None:
+    job = _build_job(PaymentStatus.pending, JobStatus.awaiting_payment)
+    payment = _build_payment(PaymentStatus.pending)
+    payment.requested_at = datetime.now(timezone.utc) - timedelta(minutes=30)
+
+    result = get_customer_receipt(str(job.id), db=_FakeDB(job=job, payment=payment))
+
+    assert result.stage == "provider_delay_escalated"
+    assert result.headline == "Provider Delay - Verification In Progress"
