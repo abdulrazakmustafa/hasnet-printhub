@@ -39,6 +39,23 @@ ENV=/home/{0}/hasnet-printhub/backend/.env
 BASE=$(sed -n 's/^SNIPPE_BASE_URL=//p' "$ENV")
 KEY=$(sed -n 's/^SNIPPE_API_KEY=//p' "$ENV")
 REF="{1}"
+# Defend against CRLF or stray spaces in .env values.
+BASE="${BASE//$'\r'/}"
+KEY="${KEY//$'\r'/}"
+BASE="$(echo "$BASE" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+KEY="$(echo "$KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+REF="${REF//$'\r'/}"
+if [ -z "$BASE" ] || [ -z "$KEY" ]; then
+  echo "SNIPPE_BASE_URL or SNIPPE_API_KEY is empty in $ENV" >&2
+  exit 2
+fi
+case "$BASE" in
+  http://*|https://*) ;;
+  *)
+    echo "SNIPPE_BASE_URL is invalid: [$BASE]" >&2
+    exit 2
+    ;;
+esac
 curl -sS -H "Authorization: Bearer $KEY" "$BASE/v1/payments/$REF"
 '@
 $remoteScript = [string]::Format($remoteScriptTemplate, $PiUser, $ProviderRequestId)
