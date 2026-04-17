@@ -36,7 +36,7 @@ Use this when customer payment stays `pending` and the print is not released.
 
 ```powershell
 cd "C:\Users\Abdulrazak Mustafa\Documents\HPH\hasnet-printhub\backend"
-powershell -ExecutionPolicy Bypass -File ".\scripts\investigate-snippe-payment-via-ssh.ps1" -ProviderRequestId "SN<YOUR_REF>" -RemoteApiBaseUrl "http://127.0.0.1:8000/api/v1"
+powershell -ExecutionPolicy Bypass -File ".\scripts\run-daily-operator-pack.ps1" -ProviderRequestId "SN<YOUR_REF>" -ApiBaseUrl "http://hph-pi01.local:8000/api/v1" -PiApiBaseUrl "http://127.0.0.1:8000/api/v1"
 ```
 
 Legacy command compatibility:
