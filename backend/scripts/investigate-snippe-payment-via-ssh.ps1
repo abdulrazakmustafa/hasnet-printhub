@@ -32,13 +32,6 @@ if (-not (Test-Path -LiteralPath $piScriptPath)) {
     throw "Pi investigation script not found: $piScriptPath"
 }
 
-function Convert-ToBashSingleQuotedLiteral([string]$Value) {
-    if ($null -eq $Value) {
-        return "''"
-    }
-    return "'" + ($Value -replace "'", "'""'""'") + "'"
-}
-
 $remoteArgs = @(
     "--provider-request-id", $ProviderRequestId,
     "--api-base-url", $RemoteApiBaseUrl,
@@ -55,14 +48,13 @@ if (-not [string]::IsNullOrWhiteSpace($SaveEvidencePath)) {
     $remoteArgs += @("--save-evidence-path", $SaveEvidencePath)
 }
 
-$quotedArgs = $remoteArgs | ForEach-Object { Convert-ToBashSingleQuotedLiteral $_ }
-$remoteCommand = "bash -s -- " + ($quotedArgs -join " ")
+$sshArgs = @("-tt", "$PiUser@$PiHost", "bash", "-s", "--") + $remoteArgs
 
 Write-Host "Running Pi-native investigation script over SSH ..." -ForegroundColor Cyan
 Write-Host ("Target: {0}@{1}" -f $PiUser, $PiHost) -ForegroundColor DarkCyan
 
 $scriptContent = Get-Content -Path $piScriptPath -Raw
-$scriptContent | & $SshExe -tt "$PiUser@$PiHost" $remoteCommand
+$scriptContent | & $SshExe @sshArgs
 
 if ($LASTEXITCODE -ne 0) {
     throw "Remote investigation failed with exit code $LASTEXITCODE."

@@ -138,7 +138,7 @@ esac
 
 echo "Step 1/3: Reconcile pending payments ..."
 reconcile_one_json="$(curl -sS -X POST "${api_base_url}/admin/payments/reconcile?limit=${reconcile_limit}")"
-IFS=$'\t' read -r reconcile_one_status reconcile_one_synced reconcile_one_limit <<< "$(printf '%s' "${reconcile_one_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(f"{d.get(\"status\",\"\")}\t{d.get(\"synced\",\"\")}\t{d.get(\"limit\",\"\")}")')"
+IFS=$'\t' read -r reconcile_one_status reconcile_one_synced reconcile_one_limit <<< "$(printf '%s' "${reconcile_one_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); print("{}\t{}\t{}".format(d.get("status",""), d.get("synced",""), d.get("limit","")))')"
 echo "Reconcile #1 => status=${reconcile_one_status}, synced=${reconcile_one_synced}, limit=${reconcile_one_limit}"
 
 echo "Step 2/3: Query Snippe provider status on Pi ..."
@@ -151,7 +151,7 @@ if (( skip_second_reconcile == 0 )); then
   echo "Step 3/3: Waiting ${second_reconcile_delay_seconds}s then reconcile again ..."
   sleep "${second_reconcile_delay_seconds}"
   reconcile_two_json="$(curl -sS -X POST "${api_base_url}/admin/payments/reconcile?limit=${reconcile_limit}")"
-  IFS=$'\t' read -r reconcile_two_status reconcile_two_synced reconcile_two_limit <<< "$(printf '%s' "${reconcile_two_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(f"{d.get(\"status\",\"\")}\t{d.get(\"synced\",\"\")}\t{d.get(\"limit\",\"\")}")')"
+  IFS=$'\t' read -r reconcile_two_status reconcile_two_synced reconcile_two_limit <<< "$(printf '%s' "${reconcile_two_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); print("{}\t{}\t{}".format(d.get("status",""), d.get("synced",""), d.get("limit","")))')"
   echo "Reconcile #2 => status=${reconcile_two_status}, synced=${reconcile_two_synced}, limit=${reconcile_two_limit}"
 fi
 
