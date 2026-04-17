@@ -15,7 +15,24 @@ $encodedRef = [System.Uri]::EscapeDataString($ProviderRequestId.Trim())
 $uri = "$ApiBaseUrl/payments/by-provider-ref/$encodedRef"
 
 Write-Host ("Fetching payment snapshot from: {0}" -f $uri) -ForegroundColor Cyan
-$snapshot = Invoke-RestMethod -Method GET -Uri $uri
+try {
+    $snapshot = Invoke-RestMethod -Method GET -Uri $uri
+}
+catch {
+    $response = $_.Exception.Response
+    if ($response -and [int]$response.StatusCode -eq 404) {
+        Write-Host ""
+        Write-Host "Endpoint not found on target API (404)." -ForegroundColor Red
+        Write-Host "This usually means Pi backend is on older code and missing /payments/by-provider-ref/{provider_request_id}." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Next step:" -ForegroundColor Cyan
+        Write-Host "Run deploy script from backend folder:" -ForegroundColor Cyan
+        Write-Host "  powershell -ExecutionPolicy Bypass -File .\scripts\deploy-payment-snapshot-hotfix-to-pi.ps1 -PiHost hph-pi01.local -VerifyProviderRequestId $ProviderRequestId" -ForegroundColor Cyan
+        exit 2
+    }
+
+    throw
+}
 
 Write-Host ""
 Write-Host "Payment Snapshot" -ForegroundColor Yellow
