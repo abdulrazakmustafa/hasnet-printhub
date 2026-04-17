@@ -51,16 +51,19 @@ $BatchSummaryPath = [System.IO.Path]::GetFullPath($BatchSummaryPath)
 $allowedMethods = @("tigo", "mpesa", "airtel")
 $normalizedMethods = @()
 foreach ($m in $Methods) {
-    $method = ("{0}" -f $m).Trim().ToLower()
-    if ([string]::IsNullOrWhiteSpace($method)) {
-        continue
-    }
+    $raw = ("{0}" -f $m)
+    foreach ($part in $raw.Split(",")) {
+        $method = $part.Trim().ToLower()
+        if ([string]::IsNullOrWhiteSpace($method)) {
+            continue
+        }
 
-    if ($allowedMethods -notcontains $method) {
-        throw "Unsupported method '$method'. Allowed: tigo, mpesa, airtel"
-    }
+        if ($allowedMethods -notcontains $method) {
+            throw "Unsupported method '$method'. Allowed: tigo, mpesa, airtel"
+        }
 
-    $normalizedMethods += $method
+        $normalizedMethods += $method
+    }
 }
 
 if ($normalizedMethods.Count -eq 0) {
