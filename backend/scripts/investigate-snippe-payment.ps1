@@ -36,14 +36,22 @@ Write-Host "Step 2/3: Query Snippe provider status on Pi ..." -ForegroundColor C
 $remoteScriptTemplate = @'
 set -euo pipefail
 ENV=/home/__PIUSER__/hasnet-printhub/backend/.env
-BASE=$(sed -n 's/^SNIPPE_BASE_URL=//p' "$ENV")
-KEY=$(sed -n 's/^SNIPPE_API_KEY=//p' "$ENV")
 REF="__REF__"
-# Defend against CRLF or stray spaces in .env values.
-BASE="${BASE//$'\r'/}"
-KEY="${KEY//$'\r'/}"
-BASE="$(echo "$BASE" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-KEY="$(echo "$KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+read_env_value() {
+  local key="$1"
+  local raw
+  raw=$(grep -E "^${key}=" "$ENV" | tail -n 1 | cut -d= -f2- || true)
+  raw="${raw%%#*}"
+  raw="${raw//$'\r'/}"
+  raw="$(echo "$raw" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  raw="${raw%\"}"
+  raw="${raw#\"}"
+  raw="${raw%\'}"
+  raw="${raw#\'}"
+  printf '%s' "$raw"
+}
+BASE="$(read_env_value SNIPPE_BASE_URL)"
+KEY="$(read_env_value SNIPPE_API_KEY)"
 REF="${REF//$'\r'/}"
 if [ -z "$BASE" ] || [ -z "$KEY" ]; then
   echo "SNIPPE_BASE_URL or SNIPPE_API_KEY is empty in $ENV" >&2
@@ -56,6 +64,10 @@ case "$BASE" in
     exit 2
     ;;
 esac
+if [ "${BASE#* }" != "$BASE" ]; then
+  echo "SNIPPE_BASE_URL contains spaces and may be malformed: [$BASE]" >&2
+  exit 2
+fi
 curl -sS -H "Authorization: Bearer $KEY" "$BASE/v1/payments/$REF"
 '@
 $remoteScript = $remoteScriptTemplate.Replace("__PIUSER__", $PiUser).Replace("__REF__", $ProviderRequestId)
