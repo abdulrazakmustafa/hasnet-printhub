@@ -28,8 +28,8 @@ build/
 
 # Logs
 *.log
+backend/evidence/
 
 # OS files
 Thumbs.db
 .DS_Store
-

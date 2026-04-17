@@ -45,6 +45,13 @@ Legacy command compatibility:
 powershell -ExecutionPolicy Bypass -File ".\scripts\investigate-snippe-payment.ps1" -ProviderRequestId "SN<YOUR_REF>" -ApiBaseUrl "http://127.0.0.1:8000/api/v1"
 ```
 
+Multi-method fast smoke (single session):
+
+```powershell
+cd "C:\Users\Abdulrazak Mustafa\Documents\HPH\hasnet-printhub\backend"
+powershell -ExecutionPolicy Bypass -File ".\scripts\run-snippe-smoke-batch.ps1" -Msisdn "255778415671" -Methods tigo,mpesa,airtel -ApiBaseUrl "http://hph-pi01.local:8000/api/v1" -PiApiBaseUrl "http://127.0.0.1:8000/api/v1"
+```
+
 Direct on Pi (if already SSH'd in):
 
 ```bash
