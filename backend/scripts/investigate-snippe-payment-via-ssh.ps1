@@ -48,7 +48,8 @@ if (-not [string]::IsNullOrWhiteSpace($SaveEvidencePath)) {
     $remoteArgs += @("--save-evidence-path", $SaveEvidencePath)
 }
 
-$sshArgs = @("-tt", "$PiUser@$PiHost", "bash", "-s", "--") + $remoteArgs
+# Use non-interactive SSH (-T) so streamed script content is not echoed back line-by-line.
+$sshArgs = @("-T", "$PiUser@$PiHost", "bash", "-s", "--") + $remoteArgs
 
 Write-Host "Running Pi-native investigation script over SSH ..." -ForegroundColor Cyan
 Write-Host ("Target: {0}@{1}" -f $PiUser, $PiHost) -ForegroundColor DarkCyan
