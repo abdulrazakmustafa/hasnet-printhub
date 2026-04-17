@@ -18,17 +18,18 @@ Date: 2026-04-17
 
 ### Track A: Admin Surface (backend-first)
 
-1. Device fleet endpoint with live status + job counters.
-2. Alerts listing endpoint with filters (status, severity, device).
-3. Admin dashboard UI consumption of above endpoints.
-4. Basic reporting endpoints (today totals, success/fail rates, top issues).
+1. Device fleet endpoint with live status + job counters. (Done)
+2. Alerts listing endpoint with filters (status, severity, device). (Done)
+3. Admin payments list endpoint with filters. (Done)
+4. Basic daily reporting endpoint (`/admin/reports/today`). (Done)
+5. Admin dashboard UI consumption of above endpoints. (Next)
 
 ### Track B: Customer Flow Productization
 
 1. Upload/quote/payment API hardening (file validation, limits, UX-safe errors).
 2. Receipt/confirmation artifacts (transaction id + job id + timestamps).
 3. Retry-safe flow handling for delayed provider statuses.
-4. Clear customer messaging states:
+4. Clear customer messaging states via API response endpoint. (Done)
    - awaiting approval
    - confirmed
    - failed/cancelled
@@ -47,6 +48,10 @@ Date: 2026-04-17
 2. Add customer-facing status/receipt response improvements.
 3. Execute batch payment smoke (`tigo`, `mpesa`, `airtel`) and collect evidence.
 4. Perform final on-site print verification and close rollout.
+
+Latest verification command pack:
+1. `backend/scripts/deploy-admin-customer-api-hotfix-to-pi.ps1`
+2. `backend/scripts/check-admin-customer-api-pack.ps1`
 
 ## 5) Delivery Policy
 

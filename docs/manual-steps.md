@@ -142,3 +142,5 @@ Instead of keeping backend on Windows LAN, deploy backend directly on Pi:
 8. Use `backend/scripts/check-payment-by-provider-ref.ps1` for quick backend payment/job snapshot checks by `SN...` reference.
 9. Use `backend/scripts/run-daily-operator-pack.ps1` for one-command daily checks (health + reconcile + provider check + backend snapshot + decision summary).
 10. Use `backend/scripts/run-snippe-smoke-batch.ps1` to run multiple methods in one session and generate one combined evidence JSON.
+11. Use `backend/scripts/deploy-admin-customer-api-hotfix-to-pi.ps1` to sync latest admin/customer API routes to Pi quickly.
+12. Use `backend/scripts/check-admin-customer-api-pack.ps1` to smoke-test admin/customer endpoints after deploy.

@@ -52,6 +52,14 @@ cd "C:\Users\Abdulrazak Mustafa\Documents\HPH\hasnet-printhub\backend"
 powershell -ExecutionPolicy Bypass -File ".\scripts\run-snippe-smoke-batch.ps1" -Msisdn "255778415671" -Methods tigo,mpesa,airtel -ApiBaseUrl "http://hph-pi01.local:8000/api/v1" -PiApiBaseUrl "http://127.0.0.1:8000/api/v1"
 ```
 
+Admin/customer API sync + smoke:
+
+```powershell
+cd "C:\Users\Abdulrazak Mustafa\Documents\HPH\hasnet-printhub\backend"
+powershell -ExecutionPolicy Bypass -File ".\scripts\deploy-admin-customer-api-hotfix-to-pi.ps1" -PiHost "hph-pi01.local"
+powershell -ExecutionPolicy Bypass -File ".\scripts\check-admin-customer-api-pack.ps1" -ApiBaseUrl "http://hph-pi01.local:8000/api/v1" -Limit 5
+```
+
 Direct on Pi (if already SSH'd in):
 
 ```bash
