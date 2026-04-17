@@ -7,6 +7,7 @@ Date: 2026-04-17
 1. Payment flow + strict gate is working.
 2. Backend records confirmed payment and printed status correctly.
 3. Daily operator tooling is now stable.
+4. Automated backend regression tests are now available for core payment/admin logic.
 
 ## 2) What Is Actually Blocking Final Close
 
@@ -39,8 +40,9 @@ Date: 2026-04-17
 
 1. Batch smoke testing across methods using one command.
 2. Daily evidence pack generation and archive policy.
-3. On-site printer reconnection and final paper-output validation.
-4. Go-live checklist sign-off.
+3. Automated backend regression run before each deployment. (Done)
+4. On-site printer reconnection and final paper-output validation.
+5. Go-live checklist sign-off.
 
 ## 4) Immediate Next Build Sequence
 

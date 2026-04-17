@@ -144,3 +144,4 @@ Instead of keeping backend on Windows LAN, deploy backend directly on Pi:
 10. Use `backend/scripts/run-snippe-smoke-batch.ps1` to run multiple methods in one session and generate one combined evidence JSON.
 11. Use `backend/scripts/deploy-admin-customer-api-hotfix-to-pi.ps1` to sync latest admin/customer API routes to Pi quickly.
 12. Use `backend/scripts/check-admin-customer-api-pack.ps1` to smoke-test admin/customer endpoints after deploy.
+13. Use `backend/scripts/run-backend-tests.ps1` to run the automated backend regression pack before each major deploy.
