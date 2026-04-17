@@ -139,3 +139,4 @@ Instead of keeping backend on Windows LAN, deploy backend directly on Pi:
 5. Keep a printer consumables replacement schedule per site.
 6. For delayed payment incidents, follow `docs/payment-pending-operator-runbook.md`.
 7. Use `backend/scripts/investigate-snippe-payment-via-ssh.ps1` (or `investigate-snippe-payment-on-pi.sh`) to capture consistent pending-payment evidence.
+8. Use `backend/scripts/check-payment-by-provider-ref.ps1` for quick backend payment/job snapshot checks by `SN...` reference.

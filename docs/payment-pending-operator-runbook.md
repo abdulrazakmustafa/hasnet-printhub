@@ -58,6 +58,13 @@ bash ./scripts/investigate-snippe-payment-on-pi.sh --provider-request-id SN<YOUR
 curl.exe -X POST "http://hph-pi01.local:8000/api/v1/admin/payments/reconcile?limit=100"
 ```
 
+### A2) Fast backend snapshot by provider ref (no SSH)
+
+```powershell
+cd "C:\Users\Abdulrazak Mustafa\Documents\HPH\hasnet-printhub\backend"
+powershell -ExecutionPolicy Bypass -File ".\scripts\check-payment-by-provider-ref.ps1" -ProviderRequestId "SN<YOUR_REF>" -ApiBaseUrl "http://hph-pi01.local:8000/api/v1"
+```
+
 ### B) Open SSH session to Pi
 
 ```powershell
