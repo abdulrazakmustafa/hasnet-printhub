@@ -4,7 +4,9 @@ param(
     [string]$PiUser = "hasnet_pi",
     [string]$RemoteBackendDir = "",
     [string]$VerifyProviderRequestId = "",
-    [int]$ApiPort = 8000
+    [int]$ApiPort = 8000,
+    [int]$HealthRetryCount = 12,
+    [int]$HealthRetryDelaySeconds = 2
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,9 +50,25 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Restarting backend service on Pi (sudo may prompt for password) ..." -ForegroundColor Cyan
-& ssh -tt $target "sudo systemctl restart hasnet-printhub-api; sudo systemctl is-active hasnet-printhub-api; curl -sS http://127.0.0.1:$ApiPort/api/v1/health"
+& ssh -tt $target "sudo systemctl restart hasnet-printhub-api; sudo systemctl is-active hasnet-printhub-api"
 if ($LASTEXITCODE -ne 0) {
-    throw "Failed to restart/validate hasnet-printhub-api."
+    throw "Failed to restart hasnet-printhub-api."
+}
+
+$healthOk = $false
+for ($attempt = 1; $attempt -le $HealthRetryCount; $attempt++) {
+    Write-Host ("Checking backend health (attempt {0}/{1}) ..." -f $attempt, $HealthRetryCount) -ForegroundColor DarkCyan
+    & ssh -tt $target "curl -sS http://127.0.0.1:$ApiPort/api/v1/health"
+    if ($LASTEXITCODE -eq 0) {
+        $healthOk = $true
+        break
+    }
+
+    Start-Sleep -Seconds $HealthRetryDelaySeconds
+}
+
+if (-not $healthOk) {
+    throw "Failed to validate hasnet-printhub-api health after restart."
 }
 
 if (-not [string]::IsNullOrWhiteSpace($VerifyProviderRequestId)) {
