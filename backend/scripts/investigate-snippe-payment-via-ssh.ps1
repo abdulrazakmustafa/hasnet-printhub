@@ -48,19 +48,21 @@ if (-not [string]::IsNullOrWhiteSpace($SaveEvidencePath)) {
     $remoteArgs += @("--save-evidence-path", $SaveEvidencePath)
 }
 
-# Use non-interactive SSH (-T) and strip CR on remote stdin before executing via bash.
-# Pattern: sh -c '<cmd>' sh <arg1> <arg2> ... so "$@" is preserved safely.
-$remoteExec = 'tr -d ''\r'' | bash -s -- "$@"'
-$sshArgs = @("-T", "$PiUser@$PiHost", "sh", "-c", $remoteExec, "sh") + $remoteArgs
+# Use non-interactive SSH (-T). Send script payload as base64 to avoid CRLF/TTY corruption.
+# Pattern: sh -c '<cmd>' sh <script_b64> <arg1> <arg2> ... so "$@" is preserved safely.
+$scriptContent = Get-Content -Path $piScriptPath -Raw
+$scriptContent = $scriptContent -replace "`r`n", "`n"
+$scriptContent = $scriptContent -replace "`r", "`n"
+$scriptBytes = [System.Text.Encoding]::UTF8.GetBytes($scriptContent)
+$scriptB64 = [Convert]::ToBase64String($scriptBytes)
+
+$remoteExec = 'script_b64="$1"; shift; printf ''%s'' "$script_b64" | base64 -d | bash -s -- "$@"'
+$sshArgs = @("-T", "$PiUser@$PiHost", "sh", "-c", $remoteExec, "sh", $scriptB64) + $remoteArgs
 
 Write-Host "Running Pi-native investigation script over SSH ..." -ForegroundColor Cyan
 Write-Host ("Target: {0}@{1}" -f $PiUser, $PiHost) -ForegroundColor DarkCyan
 
-$scriptContent = Get-Content -Path $piScriptPath -Raw
-# Ensure we don't inject Windows CR into the streamed payload.
-$scriptContent = $scriptContent -replace "`r`n", "`n"
-$scriptContent = $scriptContent -replace "`r", "`n"
-$scriptContent | & $SshExe @sshArgs
+& $SshExe @sshArgs
 
 if ($LASTEXITCODE -ne 0) {
     throw "Remote investigation failed with exit code $LASTEXITCODE."
