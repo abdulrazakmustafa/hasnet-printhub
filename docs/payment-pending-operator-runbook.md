@@ -32,6 +32,13 @@ Use this when customer payment stays `pending` and the print is not released.
 
 ## 4. Copy-Paste Commands (Windows)
 
+### Quick one-command investigation (recommended)
+
+```powershell
+cd "C:\Users\Abdulrazak Mustafa\Documents\HPH\hasnet-printhub\backend"
+powershell -ExecutionPolicy Bypass -File ".\scripts\investigate-snippe-payment.ps1" -ProviderRequestId "SN<YOUR_REF>" -ApiBaseUrl "http://hph-pi01.local:8000/api/v1"
+```
+
 ### A) Reconcile pending payments
 
 ```powershell
