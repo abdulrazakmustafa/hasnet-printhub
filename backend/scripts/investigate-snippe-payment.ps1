@@ -35,10 +35,10 @@ Write-Host ("Reconcile #1 => status={0}, synced={1}, limit={2}" -f $reconcileOne
 Write-Host "Step 2/3: Query Snippe provider status on Pi ..." -ForegroundColor Cyan
 $remoteScriptTemplate = @'
 set -euo pipefail
-ENV=/home/{0}/hasnet-printhub/backend/.env
+ENV=/home/__PIUSER__/hasnet-printhub/backend/.env
 BASE=$(sed -n 's/^SNIPPE_BASE_URL=//p' "$ENV")
 KEY=$(sed -n 's/^SNIPPE_API_KEY=//p' "$ENV")
-REF="{1}"
+REF="__REF__"
 # Defend against CRLF or stray spaces in .env values.
 BASE="${BASE//$'\r'/}"
 KEY="${KEY//$'\r'/}"
@@ -58,7 +58,7 @@ case "$BASE" in
 esac
 curl -sS -H "Authorization: Bearer $KEY" "$BASE/v1/payments/$REF"
 '@
-$remoteScript = [string]::Format($remoteScriptTemplate, $PiUser, $ProviderRequestId)
+$remoteScript = $remoteScriptTemplate.Replace("__PIUSER__", $PiUser).Replace("__REF__", $ProviderRequestId)
 $providerRaw = $remoteScript | & $SshExe "$PiUser@$PiHost" "bash -s" 2>&1
 if ($LASTEXITCODE -ne 0) {
     throw "SSH/provider query failed: $providerRaw"
