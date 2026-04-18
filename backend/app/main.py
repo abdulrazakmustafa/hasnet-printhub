@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
@@ -78,3 +79,13 @@ if _assets_dir.exists():
 @app.get("/healthz", tags=["Health"])
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/customer-start", include_in_schema=False)
+def customer_start_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/customer-app/?entry=qr", status_code=307)
+
+
+@app.get("/customer", include_in_schema=False)
+def customer_short_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/customer-app/?entry=qr", status_code=307)

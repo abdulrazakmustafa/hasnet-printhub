@@ -79,6 +79,25 @@
           </div>
         </article>
       </div>
+
+      <article class="card">
+        <h2>Customer QR Entry</h2>
+        <p class="hint">Use this QR target so customer scan opens the first customer upload page directly.</p>
+        <div class="qr-grid">
+          <div>
+            <label for="qrEntryUrl">QR Target URL</label>
+            <input id="qrEntryUrl" type="text" readonly>
+            <div class="inline-actions">
+              <button id="qrCopyBtn" type="button">Copy URL</button>
+              <button id="qrOpenBtn" type="button">Open Page</button>
+            </div>
+          </div>
+          <div class="qr-box">
+            <img id="qrPreview" alt="Customer QR preview">
+            <p id="qrHint" class="hint">QR preview needs internet for generation; scanned URL itself is local.</p>
+          </div>
+        </div>
+      </article>
     </section>
 
     <section class="view" data-view-panel="devices">

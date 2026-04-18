@@ -62,6 +62,12 @@
     pricingColor: $("pricingColor"),
     pricingCurrency: $("pricingCurrency"),
     pricingPreview: $("pricingPreview"),
+
+    qrEntryUrl: $("qrEntryUrl"),
+    qrPreview: $("qrPreview"),
+    qrHint: $("qrHint"),
+    qrCopyBtn: $("qrCopyBtn"),
+    qrOpenBtn: $("qrOpenBtn"),
   };
 
   function setStatus(message, tone) {
@@ -161,6 +167,19 @@
       throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
     }
     return payload;
+  }
+
+  function customerEntryUrl() {
+    return `${window.location.origin}/customer-start`;
+  }
+
+  function renderQrEntry() {
+    const entryUrl = customerEntryUrl();
+    ui.qrEntryUrl.value = entryUrl;
+    ui.qrPreview.src = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(entryUrl)}`;
+    ui.qrPreview.onerror = () => {
+      ui.qrHint.textContent = "QR preview unavailable now; URL is ready to use in any QR generator.";
+    };
   }
 
   function showView(view) {
@@ -354,6 +373,7 @@
         loadReport(),
         loadPricing(),
       ]);
+      renderQrEntry();
       setStatus("All admin panels refreshed.", "ok");
     } catch (err) {
       setStatus(`Refresh failed: ${err.message}`, "bad");
@@ -472,12 +492,26 @@
         setStatus(`Pricing save failed: ${err.message}`, "bad");
       }
     });
+
+    ui.qrCopyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(ui.qrEntryUrl.value);
+        setStatus("QR entry URL copied.", "ok");
+      } catch (_err) {
+        setStatus("Copy failed. Please copy URL manually.", "bad");
+      }
+    });
+
+    ui.qrOpenBtn.addEventListener("click", () => {
+      window.open(ui.qrEntryUrl.value, "_blank", "noopener");
+    });
   }
 
   async function init() {
     bindTabs();
     bindEvents();
     showView("overview");
+    renderQrEntry();
     await refreshAll();
   }
 
