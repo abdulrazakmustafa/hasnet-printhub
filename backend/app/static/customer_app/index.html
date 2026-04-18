@@ -7,14 +7,14 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="site-strip">Driven by Innovation, Powered by Engineering! Enginnovation</div>
+  <div id="siteStrip" class="site-strip">Driven by Innovation, Powered by Engineering! Enginnovation</div>
 
   <main class="kiosk-shell">
     <header class="brand">
       <img class="brand-logo" src="/assets/logo-white-2.png" alt="Hasnet ICT Solution">
       <div class="brand-text">
-        <h1>PrintHub</h1>
-        <p class="brand-note">Simple, secure, and fast self-service printing kiosk.</p>
+        <h1 id="brandTitle">PrintHub</h1>
+        <p id="brandNote" class="brand-note">Simple, secure, and fast self-service printing kiosk.</p>
       </div>
     </header>
 
@@ -33,10 +33,15 @@
       <li data-step="5">Finish</li>
     </ol>
 
+    <section id="kioskBlockBanner" class="kiosk-block" hidden>
+      <h2 id="kioskBlockTitle">Kiosk Temporarily Unavailable</h2>
+      <p id="kioskBlockMessage" class="lead">Printer is currently unavailable. Please contact support.</p>
+    </section>
+
     <section class="panel active" data-step-panel="1">
-      <h2>Karibu Hasnet PrintHub</h2>
-      <p class="lead">Upload your PDF document and follow simple steps to complete your print.</p>
-      <div class="trust-strip">
+      <h2 id="welcomeTitle">Karibu Hasnet PrintHub</h2>
+      <p id="welcomeLead" class="lead">Upload your PDF document and follow simple steps to complete your print.</p>
+      <div id="trustStrip" class="trust-strip">
         <span class="trust-pill"><i class="trust-icon" aria-hidden="true"></i>Payment-verified printing</span>
         <span class="trust-pill"><i class="trust-icon" aria-hidden="true"></i>Auto page detection</span>
         <span class="trust-pill"><i class="trust-icon" aria-hidden="true"></i>Instant status updates</span>
@@ -124,8 +129,8 @@
     </section>
 
     <section class="panel" data-step-panel="4">
-      <h2>Payment Details</h2>
-      <p class="lead">Enter details and tap <strong>Pay to Print</strong>.</p>
+      <h2 id="paymentSectionTitle">Payment Details</h2>
+      <p id="paymentSectionLead" class="lead">Enter details and tap <strong>Pay to Print</strong>.</p>
       <div class="detail-grid">
         <div class="field full">
           <label for="fullName">Full Name</label>
@@ -135,9 +140,9 @@
           <label for="msisdn">Mobile Number</label>
           <input id="msisdn" type="tel" inputmode="numeric" autocomplete="tel" placeholder="07XXXXXXXX or +2557XXXXXXXX">
         </div>
-        <div class="info-tile full">
+        <div id="paymentMethodTile" class="info-tile full">
           <span class="label">Payment Method</span>
-          <strong>M-Pesa (default)</strong>
+          <strong id="paymentMethodLabel">M-Pesa (default)</strong>
         </div>
       </div>
       <div class="actions split">
@@ -155,7 +160,7 @@
         <div><span>Job ID</span><strong id="finishJobId">-</strong></div>
         <div><span>Reference</span><strong id="finishRef">-</strong></div>
       </div>
-      <p class="support">Need help? Call support: <strong>+255 777 019 901</strong></p>
+      <p class="support">Need help? Call support: <strong id="supportPhone">+255 777 019 901</strong></p>
       <div class="actions">
         <button id="newPrintBtn" class="btn btn-primary" type="button">Start New Print</button>
       </div>

@@ -35,5 +35,17 @@
     "skip_backend_health_check": false,
     "no_systemd": false,
     "no_avahi": false
+  },
+  "hotspot": {
+    "enabled": false,
+    "interface": "wlan0",
+    "ssid": "HPH-KIOSK-001",
+    "security": "WPA",
+    "passphrase": "CHANGE_ME_HOTSPOT_PASSWORD",
+    "country": "TZ",
+    "channel": 6,
+    "gateway_ip": "10.55.0.1",
+    "dhcp_start": "10.55.0.20",
+    "dhcp_end": "10.55.0.220"
   }
 }

@@ -103,10 +103,14 @@ button:hover {
   filter: brightness(1.03);
 }
 
+button.danger {
+  background: linear-gradient(135deg, #d64566, #bb2f4f);
+}
+
 .tabs {
   margin-top: 0.7rem;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 0.45rem;
 }
 
@@ -158,6 +162,16 @@ button:hover {
 .inline-actions {
   display: flex;
   gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.inline-actions.stretch {
+  flex-wrap: wrap;
+}
+
+td .inline-actions button {
+  padding: 0.44rem 0.62rem;
+  font-size: 0.76rem;
 }
 
 .kpi-grid {
@@ -223,6 +237,10 @@ button:hover {
   background: #fff;
 }
 
+#wifiQrPreview {
+  margin-top: 0.45rem;
+}
+
 .filters {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -233,6 +251,14 @@ button:hover {
 
 .filters.pricing {
   grid-template-columns: 1fr 1fr 1fr auto;
+}
+
+.filters.wide {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.filters.wide button {
+  grid-column: span 2;
 }
 
 .filters label {
@@ -376,6 +402,10 @@ tbody tr:hover {
   }
 
   .filters.pricing {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .filters.wide {
     grid-template-columns: 1fr 1fr;
   }
 }

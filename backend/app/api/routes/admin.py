@@ -10,11 +10,25 @@ from app.api.deps import get_db
 from app.core.config import settings
 from app.models.alert import Alert
 from app.models.device import Device
+from app.models.log import LogEntry
 from app.models.enums import AlertStatus, DeviceStatus, JobStatus, PaymentMethod, PaymentStatus
 from app.models.payment import Payment
 from app.models.print_job import PrintJob
+from app.services.customer_experience import (
+    evaluate_customer_availability,
+    get_customer_experience_config,
+    save_customer_experience_config,
+)
+from app.services.device_actions import execute_local_device_action
 from app.services.pricing_config import get_pricing_config, save_pricing_config
 from app.services.payment_gateway import sync_pending_payments
+from app.services.refund_workflow import (
+    approve_refund_request,
+    create_refund_request,
+    execute_refund_request,
+    list_refund_requests,
+    reject_refund_request,
+)
 
 router = APIRouter()
 
@@ -29,6 +43,28 @@ class AdminPricingConfigUpdateRequest(BaseModel):
     bw_price_per_page: float = Field(..., ge=0)
     color_price_per_page: float = Field(..., ge=0)
     currency: str = Field(..., min_length=3, max_length=3)
+
+
+class AdminCustomerExperienceUpdateRequest(BaseModel):
+    payload: dict[str, Any]
+
+
+class AdminDeviceActionRequest(BaseModel):
+    action: str = Field(..., min_length=1, max_length=40)
+    sudo_password: str = Field(default="", max_length=128)
+    confirm_reboot: bool = False
+    note: str = Field(default="", max_length=220)
+
+
+class AdminRefundRequestCreate(BaseModel):
+    payment_id: str = Field(..., min_length=1)
+    reason: str = Field(..., min_length=1, max_length=240)
+    requested_by: str = Field(default="operator", min_length=1, max_length=80)
+
+
+class AdminRefundDecisionRequest(BaseModel):
+    actor: str = Field(default="operator", min_length=1, max_length=80)
+    note: str = Field(default="", max_length=240)
 
 
 def _parse_payment_status_filter(value: str | None) -> PaymentStatus | None:
@@ -53,6 +89,43 @@ def _parse_payment_method_filter(value: str | None) -> PaymentMethod | None:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="method must be one of: tigo, mpesa, airtel, snippe",
         ) from exc
+
+
+def _parse_payment_lifecycle_filter(value: str | None) -> str | None:
+    if not value or not value.strip():
+        return None
+    normalized = value.strip().lower()
+    allowed = {
+        "payment_confirmed_and_printed",
+        "payment_confirmed_print_pending",
+        "payment_pending",
+        "payment_failed",
+        "payment_refunded",
+        "other",
+    }
+    if normalized not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "lifecycle must be one of: payment_confirmed_and_printed, "
+                "payment_confirmed_print_pending, payment_pending, payment_failed, payment_refunded, other"
+            ),
+        )
+    return normalized
+
+
+def _derive_payment_lifecycle(payment: Payment, job: PrintJob) -> str:
+    if payment.status == PaymentStatus.refunded:
+        return "payment_refunded"
+    if payment.status == PaymentStatus.confirmed and job.status == JobStatus.printed:
+        return "payment_confirmed_and_printed"
+    if payment.status == PaymentStatus.confirmed and job.status != JobStatus.printed:
+        return "payment_confirmed_print_pending"
+    if payment.status in {PaymentStatus.initiated, PaymentStatus.pending}:
+        return "payment_pending"
+    if payment.status in {PaymentStatus.failed, PaymentStatus.expired}:
+        return "payment_failed"
+    return "other"
 
 
 def _pending_reference_time(payment: Payment, job: PrintJob) -> datetime:
@@ -156,6 +229,73 @@ def _build_pending_incident_item(
     }
 
 
+def _resolve_customer_device(db: Session, explicit_device_code: str | None = None) -> Device | None:
+    config = get_customer_experience_config()
+    selected_device_code = (explicit_device_code or config.get("active_device_code") or "").strip()
+    if not selected_device_code:
+        return None
+    return db.execute(select(Device).where(Device.device_code == selected_device_code)).scalar_one_or_none()
+
+
+def _device_customer_host(device: Device) -> str:
+    metadata = device.metadata_json if isinstance(device.metadata_json, dict) else {}
+    host_override = str(metadata.get("customer_host") or "").strip()
+    if host_override:
+        return host_override
+    if device.local_ip:
+        return str(device.local_ip)
+    return f"{device.device_code}.local"
+
+
+def _build_qr_pack(db: Session, *, explicit_device_code: str | None = None) -> dict[str, Any]:
+    config = get_customer_experience_config()
+    hotspot = config.get("hotspot", {})
+    hotspot_enabled = bool(hotspot.get("enabled"))
+    entry_path = str(hotspot.get("entry_path") or "/customer-start").strip() or "/customer-start"
+    if not entry_path.startswith("/"):
+        entry_path = "/" + entry_path
+
+    device = _resolve_customer_device(db, explicit_device_code)
+    if device is None:
+        host = str(config.get("active_device_code") or "pi-kiosk-001") + ".local"
+        resolved_device_code = str(config.get("active_device_code") or "pi-kiosk-001")
+    else:
+        host = _device_customer_host(device)
+        resolved_device_code = device.device_code
+
+    hotspot_gateway_ip = str(hotspot.get("gateway_ip") or "").strip()
+    if hotspot_enabled and hotspot_gateway_ip:
+        host = hotspot_gateway_ip
+
+    entry_url = f"http://{host}:8000{entry_path}"
+    wifi_security = str(hotspot.get("wifi_security") or "WPA").upper()
+    wifi_ssid = str(hotspot.get("ssid") or "").strip()
+    wifi_pass = str(hotspot.get("passphrase") or "").strip()
+    wifi_qr_payload = ""
+    if wifi_ssid:
+        if wifi_security == "NOPASS":
+            wifi_qr_payload = f"WIFI:T:nopass;S:{wifi_ssid};;"
+        else:
+            wifi_qr_payload = f"WIFI:T:{wifi_security};S:{wifi_ssid};P:{wifi_pass};;"
+
+    return {
+        "device_code": resolved_device_code,
+        "entry_url": entry_url,
+        "entry_path": entry_path,
+        "wifi": {
+            "enabled": hotspot_enabled,
+            "ssid": wifi_ssid,
+            "wifi_security": wifi_security,
+            "gateway_ip": hotspot_gateway_ip,
+            "wifi_qr_payload": wifi_qr_payload,
+        },
+        "notes": [
+            "Use the entry_url QR for launching customer flow.",
+            "If hotspot is enabled, print the Wi-Fi QR so customers connect to kiosk network first.",
+        ],
+    }
+
+
 @router.get("/devices")
 def admin_devices(
     include_inactive: bool = Query(default=False),
@@ -230,10 +370,12 @@ def admin_payments(
     method: str | None = Query(default=None),
     provider: str | None = Query(default=None),
     device_code: str | None = Query(default=None),
+    lifecycle: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     status_filter = _parse_payment_status_filter(payment_status)
     method_filter = _parse_payment_method_filter(method)
+    lifecycle_filter = _parse_payment_lifecycle_filter(lifecycle)
     provider_filter = provider.strip().lower() if provider and provider.strip() else None
     device_filter = device_code.strip() if device_code and device_code.strip() else None
 
@@ -254,6 +396,9 @@ def admin_payments(
     rows = db.execute(query.order_by(Payment.requested_at.desc(), Payment.created_at.desc()).limit(limit)).all()
     items = []
     for payment, job, resolved_device_code in rows:
+        payment_lifecycle = _derive_payment_lifecycle(payment, job)
+        if lifecycle_filter is not None and lifecycle_filter != payment_lifecycle:
+            continue
         items.append(
             {
                 "payment_id": str(payment.id),
@@ -279,6 +424,7 @@ def admin_payments(
                 "copies": int(job.copies),
                 "color_mode": job.color.value,
                 "device_code": resolved_device_code,
+                "lifecycle": payment_lifecycle,
             }
         )
 
@@ -407,6 +553,182 @@ def admin_update_pricing_config(payload: AdminPricingConfigUpdateRequest) -> Adm
         currency=currency,
     )
     return AdminPricingConfigResponse(**saved)
+
+
+@router.get("/customer-experience")
+def admin_get_customer_experience() -> dict[str, Any]:
+    return get_customer_experience_config()
+
+
+@router.put("/customer-experience")
+def admin_update_customer_experience(payload: AdminCustomerExperienceUpdateRequest) -> dict[str, Any]:
+    return save_customer_experience_config(payload.payload)
+
+
+@router.get("/customer-availability")
+def admin_customer_availability(
+    device_code: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    config = get_customer_experience_config()
+    device = _resolve_customer_device(db, device_code)
+    availability = evaluate_customer_availability(device=device, config=config)
+    selected_device_code = device.device_code if device else str(config.get("active_device_code") or "")
+    return {
+        "device_code": selected_device_code,
+        "availability": availability,
+        "operations": config.get("operations", {}),
+    }
+
+
+@router.get("/devices/{device_code}/qr-pack")
+def admin_device_qr_pack(device_code: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+    return _build_qr_pack(db, explicit_device_code=device_code)
+
+
+@router.post("/devices/{device_code}/actions")
+def admin_device_action(
+    device_code: str,
+    payload: AdminDeviceActionRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    device = db.execute(select(Device).where(Device.device_code == device_code)).scalar_one_or_none()
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
+
+    action = payload.action.strip().lower()
+    if action in {"pause_kiosk", "resume_kiosk"}:
+        config = get_customer_experience_config()
+        ops = config.get("operations", {})
+        if action == "pause_kiosk":
+            ops["uploads_enabled"] = False
+            ops["payments_enabled"] = False
+            if payload.note.strip():
+                ops["pause_reason"] = payload.note.strip()
+        else:
+            ops["uploads_enabled"] = True
+            ops["payments_enabled"] = True
+            ops["pause_reason"] = ""
+        config["operations"] = ops
+        save_customer_experience_config(config)
+        db.add(
+            LogEntry(
+                device_id=device.id,
+                print_job_id=None,
+                payment_id=None,
+                level="warning",
+                event_type="device.kiosk_pause_toggle",
+                message=f"Kiosk action '{action}' triggered by admin.",
+                payload={"action": action, "note": payload.note.strip() or None},
+            )
+        )
+        db.commit()
+        return {"status": "ok", "action": action, "detail": "Kiosk operation flags updated."}
+
+    local_device_code = str(get_customer_experience_config().get("active_device_code") or "").strip()
+    if device.device_code != local_device_code:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This backend can execute service-level actions only for the active local kiosk. "
+                "Use that kiosk's local admin panel for restart/reboot."
+            ),
+        )
+
+    result = execute_local_device_action(
+        action=action,
+        sudo_password=payload.sudo_password,
+        confirm_reboot=payload.confirm_reboot,
+    )
+    db.add(
+        LogEntry(
+            device_id=device.id,
+            print_job_id=None,
+            payment_id=None,
+            level="warning" if result["ok"] else "error",
+            event_type="device.control.action",
+            message=f"Device action '{action}' executed from admin.",
+            payload={
+                "action": action,
+                "ok": bool(result["ok"]),
+                "code": result["code"],
+                "stdout": result["stdout"],
+                "stderr": result["stderr"],
+                "note": payload.note.strip() or None,
+            },
+        )
+    )
+    db.commit()
+    return {
+        "status": "ok" if result["ok"] else "failed",
+        "action": action,
+        "result": result,
+    }
+
+
+@router.get("/refunds")
+def admin_list_refunds(
+    payment_id: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
+) -> dict[str, Any]:
+    items = list_refund_requests(payment_id=payment_id, status_filter=status_filter)
+    return {"items": items, "count": len(items)}
+
+
+@router.post("/refunds/request")
+def admin_create_refund_request(payload: AdminRefundRequestCreate, db: Session = Depends(get_db)) -> dict[str, Any]:
+    item = create_refund_request(
+        db=db,
+        payment_id=payload.payment_id,
+        reason=payload.reason,
+        requested_by=payload.requested_by,
+    )
+    return {"status": "ok", "item": item}
+
+
+@router.post("/refunds/{refund_id}/approve")
+def admin_approve_refund(
+    refund_id: str,
+    payload: AdminRefundDecisionRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    item = approve_refund_request(
+        db=db,
+        refund_id=refund_id,
+        approved_by=payload.actor,
+        note=payload.note,
+    )
+    return {"status": "ok", "item": item}
+
+
+@router.post("/refunds/{refund_id}/reject")
+def admin_reject_refund(
+    refund_id: str,
+    payload: AdminRefundDecisionRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    item = reject_refund_request(
+        db=db,
+        refund_id=refund_id,
+        rejected_by=payload.actor,
+        note=payload.note,
+    )
+    return {"status": "ok", "item": item}
+
+
+@router.post("/refunds/{refund_id}/execute")
+def admin_execute_refund(
+    refund_id: str,
+    payload: AdminRefundDecisionRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    item = execute_refund_request(
+        db=db,
+        refund_id=refund_id,
+        executed_by=payload.actor,
+        note=payload.note,
+    )
+    return {"status": "ok", "item": item}
 
 
 @router.get("/reports/today")

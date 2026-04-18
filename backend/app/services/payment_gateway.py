@@ -15,8 +15,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.device import Device
 from app.models.enums import JobStatus, PaymentMethod, PaymentStatus
 from app.schemas.payment import PaymentCreateRequest, PaymentCreateResponse
+from app.services.customer_experience import evaluate_customer_availability, get_customer_experience_config
 
 if TYPE_CHECKING:
     from app.models.payment import Payment
@@ -196,6 +198,7 @@ def _validate_payment_request_context(payload: PaymentCreateRequest, db: Session
     print_job = db.get(PrintJob, payload.print_job_id)
     if print_job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Print job not found.")
+    _enforce_device_payment_ready_or_409(db, device_id=print_job.device_id)
 
     latest_pending_payment = (
         db.execute(
@@ -211,6 +214,17 @@ def _validate_payment_request_context(payload: PaymentCreateRequest, db: Session
         .first()
     )
     _validate_payment_request_state(payload=payload, print_job=print_job, latest_pending_payment=latest_pending_payment)
+
+
+def _enforce_device_payment_ready_or_409(db: Session, *, device_id: uuid.UUID) -> None:
+    device = db.get(Device, device_id)
+    config = get_customer_experience_config()
+    availability = evaluate_customer_availability(device=device, config=config)
+    if not availability.get("can_pay", True):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(availability.get("message") or "Kiosk cannot accept payments right now."),
+        )
 
 
 def create_payment(payload: PaymentCreateRequest, db: Session) -> PaymentCreateResponse:
@@ -232,6 +246,7 @@ def create_mixx_payment(payload: PaymentCreateRequest, db: Session) -> PaymentCr
     print_job = db.get(PrintJob, payload.print_job_id)
     if print_job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Print job not found.")
+    _enforce_device_payment_ready_or_409(db, device_id=print_job.device_id)
 
     amount = round(payload.amount, 2)
     if amount <= 0:

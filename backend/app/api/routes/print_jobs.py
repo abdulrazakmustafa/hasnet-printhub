@@ -2,10 +2,11 @@ import uuid
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -25,6 +26,11 @@ from app.schemas.print_job import (
     PrintJobUploadResponse,
 )
 from app.services.pricing import compute_total_cost
+from app.services.customer_experience import (
+    evaluate_customer_availability,
+    get_customer_experience_config,
+)
+from app.services.pricing_config import get_pricing_config
 from app.services.upload_storage import (
     UPLOADS_DIR,
     UPLOAD_META_SUFFIX,
@@ -157,8 +163,69 @@ def _resolve_selected_pages_or_422(
     return (range_end_page - range_start_page) + 1
 
 
+def _resolve_customer_device(
+    *,
+    db: Session,
+    explicit_device_code: str | None,
+) -> Device | None:
+    if not hasattr(db, "execute"):
+        return None
+    config = get_customer_experience_config()
+    selected = (explicit_device_code or config.get("active_device_code") or "").strip()
+    if not selected:
+        return None
+    return db.execute(select(Device).where(Device.device_code == selected)).scalar_one_or_none()
+
+
+def _enforce_customer_operation_or_409(
+    *,
+    db: Session,
+    explicit_device_code: str | None,
+    operation: str,
+) -> None:
+    if settings.env.strip().lower() == "test" or bool(os.getenv("PYTEST_CURRENT_TEST")):
+        return
+    config = get_customer_experience_config()
+    device = _resolve_customer_device(db=db, explicit_device_code=explicit_device_code)
+    availability = evaluate_customer_availability(device=device, config=config)
+    is_upload = operation == "upload"
+    allowed = availability["can_upload"] if is_upload else availability["can_pay"]
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(availability.get("message") or "Kiosk is temporarily unavailable."),
+        )
+
+
+@router.get("/customer-config")
+def get_customer_config(
+    device_code: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    config = get_customer_experience_config()
+    resolved_device = _resolve_customer_device(db=db, explicit_device_code=device_code)
+    availability = evaluate_customer_availability(device=resolved_device, config=config)
+    pricing = get_pricing_config()
+    selected_device_code = (
+        resolved_device.device_code if resolved_device is not None else str(config.get("active_device_code") or "")
+    )
+    return {
+        "contract_version": "customer-config-v1",
+        "device_code": selected_device_code,
+        "ui_config": config,
+        "pricing": pricing,
+        "availability": availability,
+    }
+
+
 @router.post("/upload", response_model=PrintJobUploadResponse, status_code=status.HTTP_201_CREATED)
-async def upload_print_job_pdf(request: Request, file: UploadFile = File(...)) -> PrintJobUploadResponse:
+async def upload_print_job_pdf(
+    request: Request,
+    file: UploadFile = File(...),
+    device_code: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> PrintJobUploadResponse:
+    _enforce_customer_operation_or_409(db=db, explicit_device_code=device_code, operation="upload")
     cleanup_stale_upload_artifacts(max_age_hours=int(getattr(settings, "upload_artifact_ttl_hours", 24)))
 
     file_name = _validate_upload_filename_or_422(file.filename or "")
@@ -220,6 +287,8 @@ async def upload_print_job_pdf(request: Request, file: UploadFile = File(...)) -
 
 @router.post("", response_model=PrintJobCreateResponse)
 def create_quote(payload: PrintJobCreateRequest, request: Request, db: Session = Depends(get_db)) -> PrintJobCreateResponse:
+    _enforce_customer_operation_or_409(db=db, explicit_device_code=payload.device_code, operation="upload")
+
     try:
         color_mode = ColorMode(payload.color)
     except ValueError as exc:

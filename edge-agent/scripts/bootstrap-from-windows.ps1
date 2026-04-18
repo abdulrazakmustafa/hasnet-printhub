@@ -114,6 +114,11 @@ Invoke-CheckedExternal -FilePath "scp" -Arguments @(
     "${target}:$remoteAgentDir/scripts/lockdown-print-path.sh"
 ) -FailureMessage "Failed to copy lock-down script"
 
+Invoke-CheckedExternal -FilePath "scp" -Arguments @(
+    (Join-Path $edgeAgentDir "scripts\configure-hotspot-ap.sh"),
+    "${target}:$remoteAgentDir/scripts/configure-hotspot-ap.sh"
+) -FailureMessage "Failed to copy hotspot setup script"
+
 $tempEnvPath = Join-Path $env:TEMP ("hph-edge-agent-{0}.env" -f ([Guid]::NewGuid().ToString("N")))
 $envContent = @(
     "BACKEND_BASE_URL=$backendUrl"
@@ -162,6 +167,7 @@ $remoteInstallCmd = @(
     "chmod +x $remoteAgentDir/scripts/install-on-pi.sh"
     "chmod +x $remoteAgentDir/scripts/add-wifi-profile.sh"
     "chmod +x $remoteAgentDir/scripts/lockdown-print-path.sh"
+    "chmod +x $remoteAgentDir/scripts/configure-hotspot-ap.sh"
     $installCmd
 ) -join " && "
 

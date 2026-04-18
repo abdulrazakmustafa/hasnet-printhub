@@ -15,7 +15,7 @@
         <div>
           <p class="kicker">OPERATIONS DASHBOARD</p>
           <h1>PrintHub Admin</h1>
-          <p class="hint">Live control for devices, payments, incidents, reports, and pricing.</p>
+          <p class="hint">Full control for customer UX, devices, payments, incidents, reports, pricing, and refunds.</p>
         </div>
       </div>
       <div class="brand-actions">
@@ -30,6 +30,8 @@
       <button data-view="incidents" class="tab" type="button">Incidents</button>
       <button data-view="reports" class="tab" type="button">Reports</button>
       <button data-view="pricing" class="tab" type="button">Pricing</button>
+      <button data-view="kiosk" class="tab" type="button">Kiosk Controls</button>
+      <button data-view="refunds" class="tab" type="button">Refunds</button>
     </nav>
 
     <section class="view active" data-view-panel="overview">
@@ -79,25 +81,6 @@
           </div>
         </article>
       </div>
-
-      <article class="card">
-        <h2>Customer QR Entry</h2>
-        <p class="hint">Use this QR target so customer scan opens the first customer upload page directly.</p>
-        <div class="qr-grid">
-          <div>
-            <label for="qrEntryUrl">QR Target URL</label>
-            <input id="qrEntryUrl" type="text" readonly>
-            <div class="inline-actions">
-              <button id="qrCopyBtn" type="button">Copy URL</button>
-              <button id="qrOpenBtn" type="button">Open Page</button>
-            </div>
-          </div>
-          <div class="qr-box">
-            <img id="qrPreview" alt="Customer QR preview">
-            <p id="qrHint" class="hint">QR preview needs internet for generation; scanned URL itself is local.</p>
-          </div>
-        </div>
-      </article>
     </section>
 
     <section class="view" data-view-panel="devices">
@@ -155,8 +138,19 @@
               <option value="snippe">snippe</option>
             </select>
           </label>
+          <label>Lifecycle
+            <select id="paymentsLifecycle">
+              <option value="">All</option>
+              <option value="payment_confirmed_and_printed">confirmed + printed</option>
+              <option value="payment_confirmed_print_pending">confirmed + not printed</option>
+              <option value="payment_pending">pending</option>
+              <option value="payment_failed">failed/expired</option>
+              <option value="payment_refunded">refunded</option>
+              <option value="other">other</option>
+            </select>
+          </label>
           <label>Provider
-            <input id="paymentsProvider" type="text" placeholder="snippe">
+            <input id="paymentsProvider" type="text" placeholder="snippe or mixx">
           </label>
           <label>Device
             <input id="paymentsDeviceCode" type="text" placeholder="pi-kiosk-001">
@@ -174,6 +168,7 @@
                 <th>Provider Ref</th>
                 <th>Method</th>
                 <th>Status</th>
+                <th>Lifecycle</th>
                 <th>Amount</th>
                 <th>Payer</th>
                 <th>Document</th>
@@ -321,6 +316,223 @@
           <button id="pricingSaveBtn" type="submit">Save Pricing</button>
         </form>
         <p id="pricingPreview" class="preview">-</p>
+      </article>
+    </section>
+
+    <section class="view" data-view-panel="kiosk">
+      <article class="card">
+        <div class="card-header">
+          <h2>Customer Experience Controls</h2>
+          <div class="inline-actions">
+            <button id="customerExperienceReloadBtn" type="button">Reload Controls</button>
+            <button id="customerAvailabilityReloadBtn" type="button">Check Availability</button>
+          </div>
+        </div>
+        <form id="customerExperienceForm" class="filters wide">
+          <label>Active Device Code
+            <input id="cxActiveDeviceCode" type="text" placeholder="pi-kiosk-001">
+          </label>
+          <label>Top Strip Text
+            <input id="cxSiteStripText" type="text">
+          </label>
+          <label>Brand Title
+            <input id="cxBrandTitle" type="text">
+          </label>
+          <label>Brand Note
+            <input id="cxBrandNote" type="text">
+          </label>
+          <label>Welcome Title
+            <input id="cxWelcomeTitle" type="text">
+          </label>
+          <label>Welcome Lead
+            <input id="cxWelcomeLead" type="text">
+          </label>
+          <label>Support Phone
+            <input id="cxSupportPhone" type="text">
+          </label>
+          <label>Chip 1
+            <input id="cxChip1" type="text">
+          </label>
+          <label>Chip 2
+            <input id="cxChip2" type="text">
+          </label>
+          <label>Chip 3
+            <input id="cxChip3" type="text">
+          </label>
+          <label>Brand Blue
+            <input id="cxBrandBlue" type="text" placeholder="#272365">
+          </label>
+          <label>Brand Orange
+            <input id="cxBrandOrange" type="text" placeholder="#f47c20">
+          </label>
+          <label>Hide Payment Method
+            <select id="cxHidePaymentMethod">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          <label>Show Stepper
+            <select id="cxShowStepper">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          <label>Default Payment Method
+            <select id="cxDefaultPaymentMethod">
+              <option value="mpesa">mpesa</option>
+              <option value="airtel">airtel</option>
+              <option value="tigo">tigo</option>
+              <option value="snippe">snippe</option>
+            </select>
+          </label>
+          <label>Uploads Enabled
+            <select id="cxUploadsEnabled">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          <label>Payments Enabled
+            <select id="cxPaymentsEnabled">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          <label>Pause Message
+            <input id="cxPauseReason" type="text" placeholder="Kiosk paused by operator">
+          </label>
+          <label>Printer Unready Message
+            <input id="cxPrinterUnreadyMessage" type="text" placeholder="Printer unavailable, contact support.">
+          </label>
+          <label>Hotspot Enabled
+            <select id="cxHotspotEnabled">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </label>
+          <label>Hotspot SSID
+            <input id="cxHotspotSsid" type="text" placeholder="HPH-KIOSK-001">
+          </label>
+          <label>Hotspot Passphrase
+            <input id="cxHotspotPassphrase" type="text" placeholder="********">
+          </label>
+          <label>Wi-Fi Security
+            <select id="cxHotspotSecurity">
+              <option value="WPA">WPA</option>
+              <option value="WEP">WEP</option>
+              <option value="NOPASS">NOPASS</option>
+            </select>
+          </label>
+          <button id="customerExperienceSaveBtn" type="submit">Save Customer Controls</button>
+        </form>
+        <p id="customerAvailabilityPreview" class="preview">Availability: -</p>
+      </article>
+
+      <article class="card">
+        <div class="card-header">
+          <h2>Device Actions</h2>
+        </div>
+        <form id="deviceActionForm" class="filters">
+          <label>Device Code
+            <input id="deviceActionDeviceCode" type="text" placeholder="pi-kiosk-001">
+          </label>
+          <label>Sudo Password
+            <input id="deviceActionSudoPassword" type="password" placeholder="required for restart/reboot">
+          </label>
+          <label>Action Note
+            <input id="deviceActionNote" type="text" placeholder="operator note">
+          </label>
+          <div class="inline-actions stretch">
+            <button id="actionPauseKioskBtn" type="button">Pause Kiosk</button>
+            <button id="actionResumeKioskBtn" type="button">Resume Kiosk</button>
+            <button id="actionRestartAgentBtn" type="button">Restart Agent</button>
+            <button id="actionRestartApiBtn" type="button">Restart API</button>
+            <button id="actionRebootDeviceBtn" type="button" class="danger">Reboot Device</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="card">
+        <div class="card-header">
+          <h2>Per-Device QR Pack</h2>
+          <button id="qrPackReloadBtn" type="button">Reload QR Pack</button>
+        </div>
+        <div class="qr-grid">
+          <div>
+            <label for="qrEntryUrl">Customer Entry URL</label>
+            <input id="qrEntryUrl" type="text" readonly>
+            <label for="wifiQrPayload">Wi-Fi QR Payload</label>
+            <input id="wifiQrPayload" type="text" readonly>
+            <div class="inline-actions">
+              <button id="qrCopyBtn" type="button">Copy Entry URL</button>
+              <button id="wifiCopyBtn" type="button">Copy Wi-Fi QR Payload</button>
+              <button id="qrOpenBtn" type="button">Open Entry URL</button>
+            </div>
+            <p id="qrHint" class="hint">Print both QR codes: Wi-Fi QR first, then entry URL QR.</p>
+          </div>
+          <div class="qr-box">
+            <img id="qrPreview" alt="Customer QR preview">
+            <img id="wifiQrPreview" alt="Wi-Fi QR preview">
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="view" data-view-panel="refunds">
+      <article class="card">
+        <div class="card-header">
+          <h2>Refund Workflow</h2>
+          <button id="refundsReloadBtn" type="button">Reload Refunds</button>
+        </div>
+        <form id="refundCreateForm" class="filters">
+          <label>Payment ID
+            <input id="refundPaymentId" type="text" placeholder="payment uuid">
+          </label>
+          <label>Reason
+            <input id="refundReason" type="text" placeholder="why refund is needed">
+          </label>
+          <label>Requested By
+            <input id="refundRequestedBy" type="text" value="operator">
+          </label>
+          <button id="refundCreateBtn" type="submit">Request Refund</button>
+        </form>
+        <form id="refundFilters" class="filters">
+          <label>Status
+            <select id="refundStatusFilter">
+              <option value="">All</option>
+              <option value="requested">requested</option>
+              <option value="approved">approved</option>
+              <option value="executed">executed</option>
+              <option value="rejected">rejected</option>
+              <option value="cancelled">cancelled</option>
+            </select>
+          </label>
+          <label>Payment ID
+            <input id="refundPaymentFilter" type="text" placeholder="payment uuid">
+          </label>
+          <label>Actor Name
+            <input id="refundActorName" type="text" value="operator">
+          </label>
+          <label>Decision Note
+            <input id="refundDecisionNote" type="text" placeholder="approval/execution note">
+          </label>
+          <button id="refundApplyBtn" type="submit">Apply Refund Filters</button>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Refund ID</th>
+                <th>Payment ID</th>
+                <th>Status</th>
+                <th>Reason</th>
+                <th>Requested By</th>
+                <th>Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="refundsBody"></tbody>
+          </table>
+        </div>
       </article>
     </section>
 

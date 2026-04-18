@@ -3,6 +3,7 @@
   const DEFAULT_DEVICE_CODE = "pi-kiosk-001";
   const DEFAULT_PAYMENT_METHOD = "mpesa";
   const POLL_INTERVAL_MS = 5000;
+  const AVAILABILITY_REFRESH_MS = 12000;
   const URL_PARAMS = new URLSearchParams(window.location.search);
   const QA_MODE = URL_PARAMS.get("qa") === "1";
   const STEP_LABELS = {
@@ -28,15 +29,41 @@
     mode: "bw",
     pageSelection: "all",
     pollTimer: null,
+    availabilityTimer: null,
+    availability: {
+      can_upload: true,
+      can_pay: true,
+      message: "Kiosk is ready.",
+      reason_code: "ok",
+    },
+    customerConfig: null,
+    deviceCode: DEFAULT_DEVICE_CODE,
+    paymentMethod: DEFAULT_PAYMENT_METHOD,
   };
 
   const $ = (id) => document.getElementById(id);
   const ui = {
+    shell: document.querySelector(".kiosk-shell"),
+    siteStrip: $("siteStrip"),
     stepper: $("stepper"),
     progressBar: $("progressBar"),
     stepHint: $("stepHint"),
     qaBadge: $("qaBadge"),
     panels: document.querySelectorAll("[data-step-panel]"),
+    kioskBlockBanner: $("kioskBlockBanner"),
+    kioskBlockTitle: $("kioskBlockTitle"),
+    kioskBlockMessage: $("kioskBlockMessage"),
+    brandTitle: $("brandTitle"),
+    brandNote: $("brandNote"),
+    welcomeTitle: $("welcomeTitle"),
+    welcomeLead: $("welcomeLead"),
+    trustStrip: $("trustStrip"),
+    paymentSectionTitle: $("paymentSectionTitle"),
+    paymentSectionLead: $("paymentSectionLead"),
+    supportPhone: $("supportPhone"),
+    paymentMethodTile: $("paymentMethodTile"),
+    paymentMethodLabel: $("paymentMethodLabel"),
+
     pdfFile: $("pdfFile"),
     uploadBtn: $("uploadBtn"),
     uploadFeedback: $("uploadFeedback"),
@@ -70,6 +97,21 @@
     newPrintBtn: $("newPrintBtn"),
   };
 
+  function titleCase(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "-";
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
   function setFeedback(el, tone, message) {
     el.className = `feedback ${tone}`;
     el.textContent = message || "";
@@ -92,9 +134,7 @@
   }
 
   function updateQaBadge() {
-    if (!QA_MODE || !ui.qaBadge) {
-      return;
-    }
+    if (!QA_MODE || !ui.qaBadge) return;
     const viewport = `${window.innerWidth}x${window.innerHeight}`;
     const stepText = `Step ${state.step}: ${STEP_LABELS[state.step] || "-"}`;
     ui.qaBadge.hidden = false;
@@ -122,21 +162,15 @@
   function selectedPagesCount() {
     if (!state.upload) return 0;
     const totalPages = Number(state.upload.page_count || 0);
-    if (state.pageSelection !== "range") {
-      return totalPages;
-    }
+    if (state.pageSelection !== "range") return totalPages;
     const start = Number(ui.rangeStartPage.value || 0);
     const end = Number(ui.rangeEndPage.value || 0);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end > totalPages) {
-      return 0;
-    }
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end > totalPages) return 0;
     return (end - start) + 1;
   }
 
   function pageSelectionLabel() {
-    if (state.pageSelection !== "range") {
-      return "All pages";
-    }
+    if (state.pageSelection !== "range") return "All pages";
     return `Pages ${ui.rangeStartPage.value} to ${ui.rangeEndPage.value}`;
   }
 
@@ -157,9 +191,7 @@
     ui.rangeEndPage.disabled = !isRange;
     for (const input of ui.pageSelectionInputs) {
       const container = input.closest(".mode-option");
-      if (container) {
-        container.classList.toggle("active", input.checked);
-      }
+      if (container) container.classList.toggle("active", input.checked);
     }
     renderQuickEstimate();
   }
@@ -178,9 +210,7 @@
       const active = input.value === "bw";
       input.checked = active;
       const container = input.closest(".mode-option");
-      if (container) {
-        container.classList.toggle("active", active);
-      }
+      if (container) container.classList.toggle("active", active);
     }
     for (const input of ui.pageSelectionInputs) {
       input.checked = input.value === "all";
@@ -204,9 +234,7 @@
 
   function parseError(payload, statusCode) {
     if (payload && typeof payload.detail === "string") return payload.detail;
-    if (payload && Array.isArray(payload.detail)) {
-      return payload.detail.map((x) => x.msg || "Validation error").join("; ");
-    }
+    if (payload && Array.isArray(payload.detail)) return payload.detail.map((x) => x.msg || "Validation error").join("; ");
     return `Request failed (HTTP ${statusCode})`;
   }
 
@@ -218,39 +246,130 @@
     } catch (_err) {
       payload = null;
     }
-    if (!response.ok) {
-      throw new Error(parseError(payload, response.status));
-    }
+    if (!response.ok) throw new Error(parseError(payload, response.status));
     return payload;
   }
 
-  async function loadPricing() {
-    try {
-      const payload = await callJson("/admin/pricing", { method: "GET" });
-      state.pricing = {
-        bw_price_per_page: Number(payload.bw_price_per_page || 500),
-        color_price_per_page: Number(payload.color_price_per_page || 500),
-        currency: String(payload.currency || "TZS").toUpperCase(),
-      };
-    } catch (_err) {
-      state.pricing = {
-        bw_price_per_page: 500,
-        color_price_per_page: 500,
-        currency: "TZS",
-      };
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    const map = {
+      brand_blue: "--brand-blue",
+      brand_blue_2: "--brand-blue-2",
+      brand_orange: "--brand-orange",
+      brand_orange_2: "--brand-orange-2",
+      paper: "--paper",
+      surface: "--surface",
+      ink: "--ink",
+      ink_soft: "--ink-soft",
+    };
+    Object.entries(map).forEach(([key, cssVar]) => {
+      const value = String(theme[key] || "").trim();
+      if (value) root.style.setProperty(cssVar, value);
+    });
+  }
+
+  function renderTrustChips(chips) {
+    ui.trustStrip.innerHTML = "";
+    const list = Array.isArray(chips) ? chips : [];
+    const safe = list.length ? list : ["Payment-verified printing", "Auto page detection", "Instant status updates"];
+    safe.forEach((text) => {
+      const item = document.createElement("span");
+      item.className = "trust-pill";
+      item.innerHTML = `<i class="trust-icon" aria-hidden="true"></i>${escapeHtml(text)}`;
+      ui.trustStrip.appendChild(item);
+    });
+  }
+
+  function applyAvailability(availability) {
+    state.availability = availability || state.availability;
+    const canUpload = Boolean(state.availability.can_upload);
+    const canPay = Boolean(state.availability.can_pay);
+    const message = String(state.availability.message || "Kiosk is temporarily unavailable.");
+
+    ui.uploadBtn.disabled = !canUpload;
+    ui.payBtn.disabled = !canPay;
+
+    const shouldShowBlock = !canUpload || !canPay;
+    ui.kioskBlockBanner.hidden = !shouldShowBlock;
+    if (shouldShowBlock) {
+      ui.kioskBlockTitle.textContent = "Kiosk Temporarily Unavailable";
+      ui.kioskBlockMessage.textContent = message;
+      if (!canUpload) setFeedback(ui.uploadFeedback, "warn", message);
+      if (!canPay) setFeedback(ui.paymentFeedback, "warn", message);
     }
   }
 
+  function applyCustomerConfig(payload) {
+    state.customerConfig = payload.ui_config || {};
+    state.deviceCode = payload.device_code || DEFAULT_DEVICE_CODE;
+    state.pricing = {
+      bw_price_per_page: Number(payload.pricing?.bw_price_per_page || 500),
+      color_price_per_page: Number(payload.pricing?.color_price_per_page || 500),
+      currency: String(payload.pricing?.currency || "TZS").toUpperCase(),
+    };
+
+    const cfg = state.customerConfig;
+    const content = cfg.content || {};
+    const theme = cfg.theme || {};
+    const flow = cfg.flow || {};
+    const siteStripText = String(cfg.site_strip_text || "").trim();
+
+    applyTheme(theme);
+    if (siteStripText) ui.siteStrip.textContent = siteStripText;
+    ui.brandTitle.textContent = content.brand_title || "PrintHub";
+    ui.brandNote.textContent = content.brand_note || "Simple, secure, and fast self-service printing kiosk.";
+    ui.welcomeTitle.textContent = content.welcome_title || "Karibu Hasnet PrintHub";
+    ui.welcomeLead.textContent = content.welcome_lead || "Upload your PDF document and follow simple steps to complete your print.";
+    ui.paymentSectionTitle.textContent = content.payment_title || "Payment Details";
+    ui.paymentSectionLead.innerHTML = escapeHtml(content.payment_lead || "Enter details and tap Pay to Print.");
+    ui.supportPhone.textContent = content.support_phone || "+255 777 019 901";
+
+    renderTrustChips(cfg.chips);
+
+    state.paymentMethod = String(flow.default_payment_method || DEFAULT_PAYMENT_METHOD).toLowerCase();
+    ui.paymentMethodLabel.textContent = `${titleCase(state.paymentMethod)} (default)`;
+    ui.paymentMethodTile.hidden = Boolean(flow.hide_payment_method !== false);
+    ui.shell.classList.toggle("stepper-hidden", flow.show_stepper === false);
+
+    applyAvailability(payload.availability || state.availability);
+  }
+
+  async function loadCustomerConfig() {
+    const qs = new URLSearchParams();
+    if (state.deviceCode) qs.set("device_code", state.deviceCode);
+    const payload = await callJson(`/print-jobs/customer-config?${qs.toString()}`, { method: "GET" });
+    applyCustomerConfig(payload);
+  }
+
+  function splitName(fullName) {
+    const cleaned = String(fullName || "").trim().replace(/\s+/g, " ");
+    if (!cleaned) return { first: "", last: "" };
+    const parts = cleaned.split(" ");
+    if (parts.length === 1) return { first: parts[0], last: "Customer" };
+    return { first: parts[0], last: parts.slice(1).join(" ") };
+  }
+
+  function normalizeMsisdn(value) {
+    return String(value || "").trim().replace(/\s+/g, "");
+  }
+
+  function validateMsisdnOrThrow(rawMsisdn) {
+    const normalized = normalizeMsisdn(rawMsisdn);
+    const valid = /^(\+?\d{10,15})$/.test(normalized);
+    if (!valid) throw new Error("Please enter a valid mobile number.");
+    return normalized;
+  }
+
   async function uploadDocument() {
+    if (!state.availability.can_upload) throw new Error(state.availability.message || "Uploading is paused now.");
     const file = ui.pdfFile.files[0];
-    if (!file) {
-      throw new Error("Please select a PDF file first.");
-    }
+    if (!file) throw new Error("Please select a PDF file first.");
     setFeedback(ui.uploadFeedback, "warn", "Uploading document...");
 
     const form = new FormData();
     form.append("file", file, file.name);
-    const payload = await callJson("/print-jobs/upload", {
+    const qs = new URLSearchParams({ device_code: state.deviceCode || DEFAULT_DEVICE_CODE });
+    const payload = await callJson(`/print-jobs/upload?${qs.toString()}`, {
       method: "POST",
       body: form,
     });
@@ -264,9 +383,6 @@
   async function createQuote() {
     const pages = selectedPagesCount();
     const copies = Number(ui.copies.value || 1);
-    const unitBw = Number(state.pricing.bw_price_per_page || 0);
-    const unitColor = Number(state.pricing.color_price_per_page || 0);
-
     const payload = {
       pages,
       copies,
@@ -274,11 +390,11 @@
       page_selection: state.pageSelection,
       range_start_page: state.pageSelection === "range" ? Number(ui.rangeStartPage.value || 0) : null,
       range_end_page: state.pageSelection === "range" ? Number(ui.rangeEndPage.value || 0) : null,
-      device_code: DEFAULT_DEVICE_CODE,
+      device_code: state.deviceCode || DEFAULT_DEVICE_CODE,
       original_file_name: state.upload.file_name,
       upload_id: state.upload.upload_id,
-      bw_price_per_page: unitBw,
-      color_price_per_page: unitColor,
+      bw_price_per_page: Number(state.pricing.bw_price_per_page || 0),
+      color_price_per_page: Number(state.pricing.color_price_per_page || 0),
       currency: state.pricing.currency,
     };
 
@@ -289,33 +405,10 @@
     });
   }
 
-  function splitName(fullName) {
-    const cleaned = String(fullName || "").trim().replace(/\s+/g, " ");
-    if (!cleaned) {
-      return { first: "", last: "" };
-    }
-    const parts = cleaned.split(" ");
-    if (parts.length === 1) {
-      return { first: parts[0], last: "Customer" };
-    }
-    return { first: parts[0], last: parts.slice(1).join(" ") };
-  }
-
-  function normalizeMsisdn(value) {
-    return String(value || "").trim().replace(/\s+/g, "");
-  }
-
-  function validateMsisdnOrThrow(rawMsisdn) {
-    const normalized = normalizeMsisdn(rawMsisdn);
-    const valid = /^(\+?\d{10,15})$/.test(normalized);
-    if (!valid) {
-      throw new Error("Please enter a valid mobile number.");
-    }
-    return normalized;
-  }
-
   async function createPayment() {
     if (!state.upload) throw new Error("Upload document first.");
+    if (!state.availability.can_pay) throw new Error(state.availability.message || "Payments are paused now.");
+
     const fullName = ui.fullName.value.trim();
     const msisdn = validateMsisdnOrThrow(ui.msisdn.value);
     if (!fullName) throw new Error("Please enter full name.");
@@ -327,7 +420,7 @@
     const paymentPayload = {
       print_job_id: state.quote.job_id,
       amount: Number(state.quote.total_cost),
-      method: DEFAULT_PAYMENT_METHOD,
+      method: state.paymentMethod || DEFAULT_PAYMENT_METHOD,
       msisdn,
       customer_first_name: names.first,
       customer_last_name: names.last,
@@ -368,26 +461,22 @@
       await finalizeSuccess();
       return;
     }
-
     if (payload.stage === "payment_failed") {
       stopStatusPolling();
       ui.finishTitle.textContent = "Payment Not Successful";
       ui.finishMessage.textContent = "Your payment was not successful. Please return and try again.";
       return;
     }
-
     if (payload.stage === "provider_delay_escalated") {
       ui.finishTitle.textContent = "Payment Delay";
       ui.finishMessage.textContent = "Payment confirmation is delayed. Our team is verifying your transaction.";
       return;
     }
-
     if (payload.stage === "processing" || payload.stage === "payment_confirmed") {
       ui.finishTitle.textContent = "Printing In Progress";
       ui.finishMessage.textContent = "Payment confirmed. Please wait while your document is printing.";
       return;
     }
-
     ui.finishTitle.textContent = "Waiting for Confirmation";
     ui.finishMessage.textContent = payload.message || "Please wait while payment is being confirmed.";
   }
@@ -398,8 +487,10 @@
     } catch (_err) {
       state.receipt = null;
     }
-    ui.finishTitle.textContent = "Printing Successful";
-    ui.finishMessage.textContent = "Asante! Your document has been printed successfully. Karibu tena.";
+
+    const content = state.customerConfig?.content || {};
+    ui.finishTitle.textContent = content.finish_success_title || "Printing Successful";
+    ui.finishMessage.textContent = content.finish_success_message || "Asante! Your document has been printed successfully. Karibu tena.";
     ui.finishStatus.textContent = "Completed";
     if (state.receipt && state.receipt.transaction_reference) {
       ui.finishRef.textContent = state.receipt.transaction_reference;
@@ -418,6 +509,20 @@
     if (state.pollTimer) {
       window.clearInterval(state.pollTimer);
       state.pollTimer = null;
+    }
+  }
+
+  function startAvailabilityRefresh() {
+    stopAvailabilityRefresh();
+    state.availabilityTimer = window.setInterval(() => {
+      loadCustomerConfig().catch(() => {});
+    }, AVAILABILITY_REFRESH_MS);
+  }
+
+  function stopAvailabilityRefresh() {
+    if (state.availabilityTimer) {
+      window.clearInterval(state.availabilityTimer);
+      state.availabilityTimer = null;
     }
   }
 
@@ -447,9 +552,7 @@
         state.mode = input.value;
         for (const peer of ui.modeInputs) {
           const container = peer.closest(".mode-option");
-          if (container) {
-            container.classList.toggle("active", peer.checked);
-          }
+          if (container) container.classList.toggle("active", peer.checked);
         }
         renderQuickEstimate();
       });
@@ -470,11 +573,12 @@
     ui.uploadBtn.addEventListener("click", async () => {
       ui.uploadBtn.disabled = true;
       try {
+        await loadCustomerConfig();
         await uploadDocument();
       } catch (err) {
         setFeedback(ui.uploadFeedback, "bad", err.message || "Upload failed.");
       } finally {
-        ui.uploadBtn.disabled = false;
+        ui.uploadBtn.disabled = !state.availability.can_upload;
       }
     });
 
@@ -504,23 +608,22 @@
     ui.payBtn.addEventListener("click", async () => {
       ui.payBtn.disabled = true;
       try {
+        await loadCustomerConfig();
         await createPayment();
       } catch (err) {
         setFeedback(ui.paymentFeedback, "bad", err.message || "Payment request failed.");
       } finally {
-        ui.payBtn.disabled = false;
+        ui.payBtn.disabled = !state.availability.can_pay;
       }
     });
 
     ui.copies.addEventListener("input", renderQuickEstimate);
     ui.rangeStartPage.addEventListener("input", renderQuickEstimate);
     ui.rangeEndPage.addEventListener("input", renderQuickEstimate);
-
     ui.newPrintBtn.addEventListener("click", resetFlow);
   }
 
   async function init() {
-    await loadPricing();
     bindModeButtons();
     bindPageSelection();
     bindEvents();
@@ -528,10 +631,13 @@
       updateQaBadge();
       window.addEventListener("resize", updateQaBadge);
     }
+    await loadCustomerConfig();
     setStep(1);
+    startAvailabilityRefresh();
   }
 
-  init().catch(() => {
-    setFeedback(ui.uploadFeedback, "warn", "System initialized with default pricing.");
+  init().catch((err) => {
+    setFeedback(ui.uploadFeedback, "warn", err.message || "System initialized with defaults.");
+    setStep(1);
   });
 })();

@@ -13,6 +13,29 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function ConvertTo-BashSingleQuoted {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+    return "'" + $Value.Replace("'", "'""'""'") + "'"
+}
+
+function Invoke-CheckedExternal {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments,
+        [Parameter(Mandatory = $true)]
+        [string]$FailureMessage
+    )
+    & $FilePath @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "$FailureMessage (exit code $LASTEXITCODE)."
+    }
+}
+
 function Assert-NotBlank {
     param(
         [AllowNull()]
@@ -285,6 +308,75 @@ if ($agentWillRun) {
     }
 }
 
+$hotspotCfg = $profile.hotspot
+$hotspotEnabled = if ($null -eq $hotspotCfg) { $false } else { Get-BoolOrDefault -Value $hotspotCfg.enabled -Default $false }
+$hotspotParams = @{}
+
+if ($hotspotEnabled) {
+    $hotspotInterface = [string]$hotspotCfg.interface
+    if ([string]::IsNullOrWhiteSpace($hotspotInterface)) {
+        $hotspotInterface = "wlan0"
+    }
+
+    $hotspotSsid = [string]$hotspotCfg.ssid
+    Assert-NotBlank -Value $hotspotSsid -Name "hotspot.ssid"
+
+    $hotspotSecurity = [string]$hotspotCfg.security
+    if ([string]::IsNullOrWhiteSpace($hotspotSecurity)) {
+        $hotspotSecurity = "WPA"
+    }
+    $hotspotSecurity = $hotspotSecurity.Trim().ToUpperInvariant()
+    if ($hotspotSecurity -notin @("WPA", "NOPASS")) {
+        throw "hotspot.security must be WPA or NOPASS."
+    }
+
+    $hotspotPassphrase = [string]$hotspotCfg.passphrase
+    if ($hotspotSecurity -eq "WPA") {
+        Assert-NonPlaceholderSecret -Value $hotspotPassphrase -Name "hotspot.passphrase"
+        if ($hotspotPassphrase.Length -lt 8 -or $hotspotPassphrase.Length -gt 63) {
+            throw "hotspot.passphrase must be between 8 and 63 characters for WPA mode."
+        }
+    }
+
+    $hotspotCountry = [string]$hotspotCfg.country
+    if ([string]::IsNullOrWhiteSpace($hotspotCountry)) {
+        $hotspotCountry = "TZ"
+    }
+    $hotspotCountry = $hotspotCountry.Trim().ToUpperInvariant()
+
+    $hotspotChannel = Get-IntOrDefault -Value $hotspotCfg.channel -Default 6
+    if ($hotspotChannel -lt 1 -or $hotspotChannel -gt 13) {
+        throw "hotspot.channel must be between 1 and 13."
+    }
+
+    $hotspotGatewayIp = [string]$hotspotCfg.gateway_ip
+    if ([string]::IsNullOrWhiteSpace($hotspotGatewayIp)) {
+        $hotspotGatewayIp = "10.55.0.1"
+    }
+
+    $hotspotDhcpStart = [string]$hotspotCfg.dhcp_start
+    if ([string]::IsNullOrWhiteSpace($hotspotDhcpStart)) {
+        $hotspotDhcpStart = "10.55.0.20"
+    }
+
+    $hotspotDhcpEnd = [string]$hotspotCfg.dhcp_end
+    if ([string]::IsNullOrWhiteSpace($hotspotDhcpEnd)) {
+        $hotspotDhcpEnd = "10.55.0.220"
+    }
+
+    $hotspotParams = @{
+        interface = $hotspotInterface
+        ssid = $hotspotSsid
+        security = $hotspotSecurity
+        passphrase = $hotspotPassphrase
+        country = $hotspotCountry
+        channel = $hotspotChannel
+        gateway_ip = $hotspotGatewayIp
+        dhcp_start = $hotspotDhcpStart
+        dhcp_end = $hotspotDhcpEnd
+    }
+}
+
 $resolvedApiBaseUrl = ""
 if ($backendWillRun) {
     $resolvedApiBaseUrl = "http://${piHost}:$($backendParams.Port)/api/v1"
@@ -298,9 +390,13 @@ else {
 
 $fallbackPort = if ($backendWillRun) { [int]$backendParams.Port } else { 8000 }
 $resolvedOrigin = Get-OriginFromApiBaseUrl -ApiBaseUrl $resolvedApiBaseUrl -FallbackHost $piHost -FallbackPort $fallbackPort
+$qrHostOrigin = $resolvedOrigin
+if ($hotspotEnabled) {
+    $qrHostOrigin = "http://$($hotspotParams.gateway_ip):$fallbackPort"
+}
 $resolvedCustomerUrl = "{0}/customer-app/" -f $resolvedOrigin.TrimEnd("/")
 $resolvedAdminUrl = "{0}/admin-app/" -f $resolvedOrigin.TrimEnd("/")
-$resolvedQrEntryUrl = "{0}/customer-start" -f $resolvedOrigin.TrimEnd("/")
+$resolvedQrEntryUrl = "{0}/customer-start" -f $qrHostOrigin.TrimEnd("/")
 
 $summary = [ordered]@{
     kiosk_id = $kioskId
@@ -324,6 +420,13 @@ $summary = [ordered]@{
         enabled = [bool]$agentEnabled
         skipped = [bool]$SkipAgent
         will_run = [bool]$agentWillRun
+    }
+    hotspot = [ordered]@{
+        enabled = [bool]$hotspotEnabled
+        interface = if ($hotspotEnabled) { $hotspotParams.interface } else { "" }
+        ssid = if ($hotspotEnabled) { $hotspotParams.ssid } else { "" }
+        security = if ($hotspotEnabled) { $hotspotParams.security } else { "" }
+        gateway_ip = if ($hotspotEnabled) { $hotspotParams.gateway_ip } else { "" }
     }
 }
 
@@ -356,6 +459,34 @@ if ($agentWillRun) {
 }
 else {
     Write-Host "Skipping edge-agent bootstrap." -ForegroundColor DarkYellow
+}
+
+if ($hotspotEnabled) {
+    Write-Host ""
+    Write-Host "========== Hotspot Setup ==========" -ForegroundColor Yellow
+    $target = "$piUser@$piHost"
+    $hotspotScriptPath = Join-Path $repoRoot "edge-agent\scripts\configure-hotspot-ap.sh"
+    if (-not (Test-Path -LiteralPath $hotspotScriptPath)) {
+        throw "Hotspot setup script not found: $hotspotScriptPath"
+    }
+
+    $remoteHotspotScript = "/home/$piUser/edge-agent/scripts/configure-hotspot-ap.sh"
+    Invoke-CheckedExternal -FilePath "ssh" -Arguments @($target, "mkdir -p /home/$piUser/edge-agent/scripts") -FailureMessage "Unable to create remote hotspot script directory"
+    Invoke-CheckedExternal -FilePath "scp" -Arguments @($hotspotScriptPath, "${target}:$remoteHotspotScript") -FailureMessage "Unable to upload hotspot setup script"
+
+    $qRemoteHotspotScript = ConvertTo-BashSingleQuoted -Value $remoteHotspotScript
+    $remoteParts = @(
+        "chmod +x $qRemoteHotspotScript",
+        "sudo $qRemoteHotspotScript --interface $(ConvertTo-BashSingleQuoted -Value ([string]$hotspotParams.interface)) --ssid $(ConvertTo-BashSingleQuoted -Value ([string]$hotspotParams.ssid)) --security $(ConvertTo-BashSingleQuoted -Value ([string]$hotspotParams.security)) --country $(ConvertTo-BashSingleQuoted -Value ([string]$hotspotParams.country)) --channel $([int]$hotspotParams.channel) --gateway-ip $(ConvertTo-BashSingleQuoted -Value ([string]$hotspotParams.gateway_ip)) --dhcp-start $(ConvertTo-BashSingleQuoted -Value ([string]$hotspotParams.dhcp_start)) --dhcp-end $(ConvertTo-BashSingleQuoted -Value ([string]$hotspotParams.dhcp_end))"
+    )
+    if ([string]$hotspotParams.security -eq "WPA") {
+        $remoteParts[1] += " --passphrase $(ConvertTo-BashSingleQuoted -Value ([string]$hotspotParams.passphrase))"
+    }
+    $remoteCommand = $remoteParts -join " && "
+    Invoke-CheckedExternal -FilePath "ssh" -Arguments @("-tt", $target, $remoteCommand) -FailureMessage "Hotspot setup command failed"
+}
+else {
+    Write-Host "Skipping hotspot setup." -ForegroundColor DarkYellow
 }
 
 if ($RunPostSmoke) {

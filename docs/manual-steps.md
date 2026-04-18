@@ -146,3 +146,4 @@ Instead of keeping backend on Windows LAN, deploy backend directly on Pi:
 12. Use `backend/scripts/check-admin-customer-api-pack.ps1` to smoke-test admin/customer endpoints after deploy.
 13. Use `backend/scripts/run-backend-tests.ps1` to run the automated backend regression pack before each major deploy.
 14. For frontend integration, use frozen customer contract documentation: `docs/customer-api-contract-v1.md`.
+15. For kiosk cloning and per-device hotspot/QR rollout, use `docs/multi-kiosk-rollout-pack.md`.

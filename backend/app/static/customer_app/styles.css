@@ -140,6 +140,30 @@ body {
   color: #2e4275;
 }
 
+.kiosk-shell.stepper-hidden .stepper {
+  display: none;
+}
+
+.kiosk-block {
+  border: 1px solid #f3c18f;
+  border-radius: 14px;
+  background: #fff4e9;
+  box-shadow: 0 6px 16px rgba(180, 102, 0, 0.1);
+  padding: 0.9rem 0.95rem;
+  margin: 0 0 0.85rem;
+}
+
+.kiosk-block h2 {
+  margin-bottom: 0.3rem;
+  color: #8d4f08;
+  font-size: 1.1rem;
+}
+
+.kiosk-block .lead {
+  margin: 0;
+  color: #86531d;
+}
+
 .panel {
   display: none;
   border: 1px solid var(--line);
@@ -484,6 +508,11 @@ button:disabled {
 
   .stepper {
     display: none;
+  }
+
+  .kiosk-block {
+    padding: 0.75rem 0.78rem;
+    border-radius: 12px;
   }
 
   .detail-grid,
