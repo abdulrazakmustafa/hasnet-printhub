@@ -7,9 +7,10 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException, status
 
-from app.api.routes.print_jobs import _UPLOADS_DIR, create_quote
+from app.api.routes.print_jobs import create_quote
 from app.models.print_job import PrintJob
 from app.schemas.print_job import PrintJobCreateRequest
+from app.services.upload_storage import UPLOADS_DIR
 
 
 class _FakeQuery:
@@ -48,10 +49,10 @@ class _FakeDB:
         return None
 
 
-def _write_upload(upload_id: str, file_name: str, content: bytes) -> tuple[Path, Path]:
-    _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    pdf_path = _UPLOADS_DIR / f"{upload_id}.pdf"
-    meta_path = _UPLOADS_DIR / f"{upload_id}.json"
+def _write_upload(upload_id: str, file_name: str, content: bytes, *, page_count: int) -> tuple[Path, Path]:
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    pdf_path = UPLOADS_DIR / f"{upload_id}.pdf"
+    meta_path = UPLOADS_DIR / f"{upload_id}.json"
     sha = hashlib.sha256(content).hexdigest()
     pdf_path.write_bytes(content)
     meta_path.write_text(
@@ -61,7 +62,7 @@ def _write_upload(upload_id: str, file_name: str, content: bytes) -> tuple[Path,
                 "file_name": file_name,
                 "file_size_bytes": len(content),
                 "sha256": sha,
-                "page_count": 2,
+                "page_count": page_count,
             }
         ),
         encoding="utf-8",
@@ -87,7 +88,7 @@ def _pdf_bytes(page_count: int) -> bytes:
 def test_create_quote_uses_upload_id_metadata() -> None:
     upload_id = str(uuid.uuid4())
     content = _pdf_bytes(page_count=2)
-    pdf_path, meta_path = _write_upload(upload_id, "customer-doc.pdf", content)
+    pdf_path, meta_path = _write_upload(upload_id, "customer-doc.pdf", content, page_count=2)
     expected_sha = hashlib.sha256(content).hexdigest()
 
     try:
@@ -136,3 +137,68 @@ def test_create_quote_rejects_missing_upload_id_file() -> None:
 
     assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     assert "upload_id file was not found" in exc.value.detail
+
+
+def test_create_quote_supports_custom_page_range_from_upload() -> None:
+    upload_id = str(uuid.uuid4())
+    content = _pdf_bytes(page_count=5)
+    pdf_path, meta_path = _write_upload(upload_id, "chapter.pdf", content, page_count=5)
+
+    try:
+        payload = PrintJobCreateRequest(
+            pages=1,
+            copies=2,
+            color="bw",
+            page_selection="range",
+            range_start_page=2,
+            range_end_page=4,
+            upload_id=upload_id,
+            bw_price_per_page=100,
+            color_price_per_page=300,
+            currency="TZS",
+        )
+        db = _FakeDB()
+        request = SimpleNamespace(base_url="http://hph-pi01.local:8000/")
+        response = create_quote(payload=payload, request=request, db=db)
+
+        created_job = next(item for item in db.added if isinstance(item, PrintJob))
+        assert created_job.pages == 3
+        assert response.total_cost == 600.0
+    finally:
+        if pdf_path.exists():
+            pdf_path.unlink()
+        if meta_path.exists():
+            meta_path.unlink()
+
+
+def test_create_quote_rejects_custom_page_range_outside_upload_pages() -> None:
+    upload_id = str(uuid.uuid4())
+    content = _pdf_bytes(page_count=3)
+    pdf_path, meta_path = _write_upload(upload_id, "range.pdf", content, page_count=3)
+
+    try:
+        payload = PrintJobCreateRequest(
+            pages=3,
+            copies=1,
+            color="bw",
+            page_selection="range",
+            range_start_page=2,
+            range_end_page=5,
+            upload_id=upload_id,
+            bw_price_per_page=100,
+            color_price_per_page=300,
+            currency="TZS",
+        )
+        db = _FakeDB()
+        request = SimpleNamespace(base_url="http://hph-pi01.local:8000/")
+
+        with pytest.raises(HTTPException) as exc:
+            create_quote(payload=payload, request=request, db=db)
+
+        assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "exceeds document length" in exc.value.detail
+    finally:
+        if pdf_path.exists():
+            pdf_path.unlink()
+        if meta_path.exists():
+            meta_path.unlink()

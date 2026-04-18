@@ -70,6 +70,10 @@ _admin_app_dir = Path(__file__).resolve().parent / "static" / "admin_app"
 if _admin_app_dir.exists():
     app.mount("/admin-app", StaticFiles(directory=str(_admin_app_dir), html=True), name="admin-app")
 
+_assets_dir = Path(__file__).resolve().parents[1] / "assets"
+if _assets_dir.exists():
+    app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+
 
 @app.get("/healthz", tags=["Health"])
 def healthz() -> dict[str, str]:

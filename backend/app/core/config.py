@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
 
     upload_max_mb: int = 10
+    upload_artifact_ttl_hours: int = 24
     default_currency: str = "TZS"
     payment_provider: str = "mixx"
     payment_reconcile_enabled: bool = True
@@ -84,6 +85,13 @@ class Settings(BaseSettings):
     def validate_pending_escalation_minutes(cls, value: int) -> int:
         if value < 1 or value > 1440:
             raise ValueError("CUSTOMER_PENDING_ESCALATION_MINUTES must be between 1 and 1440.")
+        return value
+
+    @field_validator("upload_artifact_ttl_hours")
+    @classmethod
+    def validate_upload_artifact_ttl_hours(cls, value: int) -> int:
+        if value < 1 or value > 24 * 30:
+            raise ValueError("UPLOAD_ARTIFACT_TTL_HOURS must be between 1 and 720.")
         return value
 
 

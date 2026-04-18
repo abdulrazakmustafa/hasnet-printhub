@@ -8,6 +8,7 @@ def _base_payload() -> dict:
         "pages": 5,
         "copies": 1,
         "color": "bw",
+        "page_selection": "all",
         "device_code": "pi-kiosk-001",
         "original_file_name": "doc.pdf",
         "storage_key": "https://example.com/test-assets/doc.pdf",
@@ -24,6 +25,7 @@ def test_create_request_normalizes_fields() -> None:
     payload["original_file_name"] = "  receipt.pdf  "
     payload["storage_key"] = "  https://example.com/print/receipt.pdf  "
     payload["currency"] = "tzs"
+    payload["page_selection"] = " RANGE "
 
     model = PrintJobCreateRequest(**payload)
 
@@ -32,6 +34,7 @@ def test_create_request_normalizes_fields() -> None:
     assert model.original_file_name == "receipt.pdf"
     assert model.storage_key == "https://example.com/print/receipt.pdf"
     assert model.currency == "TZS"
+    assert model.page_selection == "range"
 
 
 def test_create_request_uses_safe_defaults_for_blank_optional_text() -> None:
@@ -122,3 +125,14 @@ def test_create_request_rejects_page_count_over_limit() -> None:
         assert False, "Expected ValidationError for page upper limit"
     except ValidationError as exc:
         assert "less than or equal to 2000" in str(exc)
+
+
+def test_create_request_rejects_invalid_page_selection() -> None:
+    payload = _base_payload()
+    payload["page_selection"] = "chapter"
+
+    try:
+        PrintJobCreateRequest(**payload)
+        assert False, "Expected ValidationError for invalid page_selection"
+    except ValidationError as exc:
+        assert "page_selection must be 'all' or 'range'" in str(exc)

@@ -1,0 +1,402 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R 9 0 R 11 0 R] /Count 4 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Length 2486 >>
+stream
+BT
+/F1 11 Tf
+14 TL
+50 790 Td
+(HASNET PRINTHUB INVESTOR BRIEF) Tj
+T*
+(Date: April 18, 2026) Tj
+T*
+(Prepared by: Hasnet ICT Solution \(Project Team\)) Tj
+T*
+() Tj
+T*
+(1. EXECUTIVE SUMMARY) Tj
+T*
+(Hasnet PrintHub is a smart self-service printing platform designed for kiosk environments) Tj
+T*
+(\(schools, streets, campuses, offices, and service centers\), where customers can upload) Tj
+T*
+(documents, pay on mobile money, and print automatically without operator dependency.) Tj
+T*
+() Tj
+T*
+(The platform is built with a strict business rule:) Tj
+T*
+(No successful payment means no printing.) Tj
+T*
+() Tj
+T*
+(This eliminates revenue leakage, improves trust in transaction records, and creates a scalable) Tj
+T*
+(model for multi-kiosk rollout.) Tj
+T*
+() Tj
+T*
+(2. PROBLEM IT SOLVES) Tj
+T*
+(Traditional printing points face recurring problems:) Tj
+T*
+(1. Payment disputes and unpaid prints.) Tj
+T*
+(2. Heavy operator dependency and inconsistent service.) Tj
+T*
+(3. Low visibility into daily transactions and printer/device health.) Tj
+T*
+(4. Difficulty scaling to multiple kiosks with consistent controls.) Tj
+T*
+(5. Weak audit trail for customer support and operations.) Tj
+T*
+() Tj
+T*
+(3. SOLUTION OVERVIEW) Tj
+T*
+(Hasnet PrintHub combines:) Tj
+T*
+(1. Customer flow:) Tj
+T*
+(Upload PDF -> Quote -> Pay -> Status -> Receipt.) Tj
+T*
+(2. Mobile money integration:) Tj
+T*
+(Snippe active now, Mixx ready.) Tj
+T*
+(3. Automated print dispatch:) Tj
+T*
+(Print only after payment confirmation.) Tj
+T*
+(4. Admin operations APIs and dashboard-ready data:) Tj
+T*
+(devices, payments, incidents, pricing, and daily reports.) Tj
+T*
+(5. Edge agent on Raspberry Pi:) Tj
+T*
+(local printer monitoring, queue handling, and job execution.) Tj
+T*
+() Tj
+T*
+(4. HOW IT WORKS \(OPERATIONAL FLOW\)) Tj
+T*
+(1. Customer uploads PDF on kiosk UI.) Tj
+T*
+(2. System auto-detects page count from uploaded PDF \(not user-entered\).) Tj
+T*
+(3. Customer selects:) Tj
+T*
+(   - print mode \(Black & White or Color\),) Tj
+T*
+(   - copies,) Tj
+T*
+(   - all pages or custom page range.) Tj
+T*
+(4. System calculates total cost using server-side pricing logic.) Tj
+T*
+(5. Customer submits mobile number and name, then payment request is created.) Tj
+T*
+(6. Payment is reconciled and verified with provider status.) Tj
+T*
+(7. Only confirmed payment unlocks print dispatch to edge agent.) Tj
+T*
+(8. Edge agent prints and reports completion back to backend.) Tj
+T*
+(9. Customer sees final status and receipt details.) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Length 2346 >>
+stream
+BT
+/F1 11 Tf
+14 TL
+50 790 Td
+(5. CORE PRODUCT VALUE) Tj
+T*
+(1. Revenue protection:) Tj
+T*
+(strict payment gate prevents unpaid printing.) Tj
+T*
+(2. Operational reliability:) Tj
+T*
+(daily operator command pack and retry-safe payment flow.) Tj
+T*
+(3. Customer clarity:) Tj
+T*
+(status timeline and receipt endpoints for frontend UX.) Tj
+T*
+(4. Local resilience:) Tj
+T*
+(Pi-local runtime keeps kiosk usable even without full cloud dependency.) Tj
+T*
+(5. Auditability:) Tj
+T*
+(transaction references, job states, and reports available for management.) Tj
+T*
+() Tj
+T*
+(6. CURRENT TECHNICAL ARCHITECTURE) Tj
+T*
+(1. Backend:) Tj
+T*
+(FastAPI + PostgreSQL.) Tj
+T*
+(2. Edge runtime:) Tj
+T*
+(Raspberry Pi + systemd services + CUPS printer integration.) Tj
+T*
+(3. Payment:) Tj
+T*
+(provider integration with reconcile support for delayed confirmations.) Tj
+T*
+(4. Customer and admin web apps:) Tj
+T*
+(served locally from backend \(`/customer-app`, `/admin-app`\).) Tj
+T*
+(5. Deployment model:) Tj
+T*
+(local-first kiosk operation with optional cloud/public webhook access.) Tj
+T*
+() Tj
+T*
+(7. LOCAL-FIRST STRATEGY \(IMPORTANT FOR SCALE AND COST\)) Tj
+T*
+(The system is intentionally designed to run as much as possible on each Pi:) Tj
+T*
+(1. API service on Pi.) Tj
+T*
+(2. Database on Pi.) Tj
+T*
+(3. Print agent on Pi.) Tj
+T*
+(4. Printer queue and driver layer on Pi.) Tj
+T*
+(5. Customer UI hosted on Pi local network.) Tj
+T*
+() Tj
+T*
+(Cloud/external services are used only where necessary:) Tj
+T*
+(1. Payment provider APIs \(Snippe/Mixx\).) Tj
+T*
+(2. Mobile network infrastructure.) Tj
+T*
+(3. Optional public webhook ingress and remote admin access.) Tj
+T*
+(4. Source backup/collaboration via GitHub.) Tj
+T*
+() Tj
+T*
+(8. SECURITY AND CONTROL PRINCIPLES) Tj
+T*
+(1. Non-negotiable gate:) Tj
+T*
+(No successful payment => no printing.) Tj
+T*
+(2. Retry-safe payment creation to avoid accidental duplicate charges.) Tj
+T*
+(3. Provider-reference based reconciliation and incident handling.) Tj
+T*
+(4. Customer contract versioning \(`v1`\) to keep frontend stable.) Tj
+T*
+(5. Controlled file handling:) Tj
+T*
+(uploaded files are temporary, with cleanup after print success and stale file TTL cleanup.) Tj
+T*
+() Tj
+T*
+(9. MULTI-KIOSK READINESS) Tj
+T*
+(The platform already includes multi-kiosk provisioning foundation:) Tj
+T*
+(1. Kiosk profile template per site.) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>
+endobj
+8 0 obj
+<< /Length 2237 >>
+stream
+BT
+/F1 11 Tf
+14 TL
+50 790 Td
+(2. Validate-only preflight before deployment.) Tj
+T*
+(3. One-command provisioning pipeline.) Tj
+T*
+(4. Standard smoke checks post-provision.) Tj
+T*
+(5. Recommended canary-then-batch rollout approach.) Tj
+T*
+() Tj
+T*
+(This makes migration to new Pi units practical and repeatable.) Tj
+T*
+() Tj
+T*
+(10. MILESTONES ACHIEVED \(AS OF APRIL 18, 2026\)) Tj
+T*
+(1. Backend admin APIs delivered and smoke-tested:) Tj
+T*
+(   - `/admin/devices`) Tj
+T*
+(   - `/admin/payments`) Tj
+T*
+(   - `/admin/reports/today`) Tj
+T*
+(   - `/admin/pricing`) Tj
+T*
+(   - `/alerts`) Tj
+T*
+(2. Customer APIs delivered and contract-frozen:) Tj
+T*
+(   - `/print-jobs/{job_id}/customer-status`) Tj
+T*
+(   - `/print-jobs/{job_id}/customer-receipt`) Tj
+T*
+(3. Automated backend regression suite established and passing.) Tj
+T*
+(4. Payment retry-safe flow and provider reference snapshot checks implemented.) Tj
+T*
+(5. Customer flow UI implemented with:) Tj
+T*
+(   - auto page detection,) Tj
+T*
+(   - one-mode-at-a-time selection,) Tj
+T*
+(   - custom page range support,) Tj
+T*
+(   - default hidden payment method \(M-Pesa\),) Tj
+T*
+(   - server-side anti-cheat billing enforcement.) Tj
+T*
+(6. Local deployment and smoke validation on Pi completed.) Tj
+T*
+() Tj
+T*
+(11. BUSINESS IMPACT POTENTIAL) Tj
+T*
+(1. New unattended or low-attended print revenue channels.) Tj
+T*
+(2. Standardized customer experience across branches.) Tj
+T*
+(3. Reduced fraud/leakage from manual payment handling.) Tj
+T*
+(4. Better reporting for finance and decision-making.) Tj
+T*
+(5. Faster expansion to schools, institutions, and public service points.) Tj
+T*
+() Tj
+T*
+(12. EXPANSION PATH) Tj
+T*
+(Phase 1:) Tj
+T*
+(single-kiosk hardening and production discipline.) Tj
+T*
+() Tj
+T*
+(Phase 2:) Tj
+T*
+(multi-kiosk rollout with centralized monitoring.) Tj
+T*
+() Tj
+T*
+(Phase 3:) Tj
+T*
+(optional central cloud control plane and analytics for cross-site intelligence.) Tj
+T*
+() Tj
+T*
+(13. INVESTOR PERSPECTIVE) Tj
+T*
+(Hasnet PrintHub is not only a software project; it is an operational platform for distributed) Tj
+T*
+(revenue points.) Tj
+T*
+(Its strength is the combination of:) Tj
+T*
+(1. hard payment-control policy,) Tj
+T*
+(2. practical field operations tooling,) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 8 0 R >>
+endobj
+10 0 obj
+<< /Length 587 >>
+stream
+BT
+/F1 11 Tf
+14 TL
+50 790 Td
+(3. local-first reliability,) Tj
+T*
+(4. scalable kiosk deployment model.) Tj
+T*
+() Tj
+T*
+(This positions it as a practical infrastructure product for modern print-service digitization in) Tj
+T*
+(Tanzania and similar markets.) Tj
+T*
+() Tj
+T*
+(14. CONCLUSION) Tj
+T*
+(Hasnet PrintHub is already demonstrating real transaction and print workflow execution.) Tj
+T*
+(The current stage is ideal for:) Tj
+T*
+(1. UI polish and customer adoption optimization,) Tj
+T*
+(2. controlled kiosk expansion,) Tj
+T*
+(3. investor-backed scale-out into multiple locations.) Tj
+ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 10 0 R >>
+endobj
+xref
+0 12
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000140 00000 n 
+0000000210 00000 n 
+0000002747 00000 n 
+0000002873 00000 n 
+0000005270 00000 n 
+0000005396 00000 n 
+0000007684 00000 n 
+0000007810 00000 n 
+0000008448 00000 n 
+trailer
+<< /Size 12 /Root 1 0 R >>
+startxref
+8576
+%%EOF

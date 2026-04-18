@@ -25,11 +25,16 @@ from app.schemas.print_job import (
     PrintJobUploadResponse,
 )
 from app.services.pricing import compute_total_cost
+from app.services.upload_storage import (
+    UPLOADS_DIR,
+    UPLOAD_META_SUFFIX,
+    cleanup_stale_upload_artifacts,
+    upload_file_path,
+    upload_meta_path,
+)
 
 router = APIRouter()
-_UPLOADS_DIR = Path(__file__).resolve().parents[3] / "assets" / "uploads"
 _ALLOWED_UPLOAD_TYPES = {"application/pdf", "application/x-pdf"}
-_UPLOAD_META_SUFFIX = ".json"
 
 
 def _validate_upload_filename_or_422(file_name: str) -> str:
@@ -61,11 +66,11 @@ def _load_upload_meta_or_422(upload_id: str) -> tuple[Path, dict]:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="upload_id must be a valid UUID.") from exc
 
     normalized_upload_id = str(parsed)
-    file_path = _UPLOADS_DIR / f"{normalized_upload_id}.pdf"
+    file_path = upload_file_path(normalized_upload_id)
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Referenced upload_id file was not found.")
 
-    meta_path = _UPLOADS_DIR / f"{normalized_upload_id}{_UPLOAD_META_SUFFIX}"
+    meta_path = upload_meta_path(normalized_upload_id)
     if not meta_path.exists() or not meta_path.is_file():
         return file_path, {}
 
@@ -112,8 +117,50 @@ def _resolve_upload_page_count_or_422(upload_meta: dict, upload_file_path: Path)
     return _detect_pdf_page_count_or_422(upload_file_path.read_bytes())
 
 
+def _resolve_selected_pages_or_422(
+    *,
+    total_pages: int,
+    page_selection: str,
+    range_start_page: int | None,
+    range_end_page: int | None,
+) -> int:
+    normalized_selection = (page_selection or "all").strip().lower()
+    if normalized_selection == "all":
+        return total_pages
+
+    if normalized_selection != "range":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="page_selection must be either 'all' or 'range'.",
+        )
+
+    if range_start_page is None or range_end_page is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Both range_start_page and range_end_page are required when page_selection is 'range'.",
+        )
+    if range_start_page < 1 or range_end_page < 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Custom page range values must be >= 1.",
+        )
+    if range_start_page > range_end_page:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="range_start_page must be less than or equal to range_end_page.",
+        )
+    if range_end_page > total_pages:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Custom page range exceeds document length ({total_pages} pages).",
+        )
+    return (range_end_page - range_start_page) + 1
+
+
 @router.post("/upload", response_model=PrintJobUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_print_job_pdf(request: Request, file: UploadFile = File(...)) -> PrintJobUploadResponse:
+    cleanup_stale_upload_artifacts(max_age_hours=int(getattr(settings, "upload_artifact_ttl_hours", 24)))
+
     file_name = _validate_upload_filename_or_422(file.filename or "")
     content_type = (file.content_type or "").lower().strip()
     if content_type and content_type not in _ALLOWED_UPLOAD_TYPES:
@@ -140,10 +187,10 @@ async def upload_print_job_pdf(request: Request, file: UploadFile = File(...)) -
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded content is not a PDF.")
     page_count = _detect_pdf_page_count_or_422(payload_bytes)
 
-    _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     upload_id = str(uuid.uuid4())
     stored_name = f"{upload_id}.pdf"
-    stored_path = _UPLOADS_DIR / stored_name
+    stored_path = UPLOADS_DIR / stored_name
     stored_path.write_bytes(payload_bytes)
     sha256 = hashlib.sha256(payload_bytes).hexdigest()
     metadata = {
@@ -156,7 +203,7 @@ async def upload_print_job_pdf(request: Request, file: UploadFile = File(...)) -
         "stored_name": stored_name,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    (_UPLOADS_DIR / f"{upload_id}{_UPLOAD_META_SUFFIX}").write_text(json.dumps(metadata), encoding="utf-8")
+    upload_meta_path(upload_id).write_text(json.dumps(metadata), encoding="utf-8")
 
     storage_key = _build_upload_storage_key(request, upload_id)
 
@@ -224,8 +271,15 @@ def create_quote(payload: PrintJobCreateRequest, request: Request, db: Session =
         else:
             file_sha256 = hashlib.sha256(upload_file_path.read_bytes()).hexdigest()
 
+    selected_pages = _resolve_selected_pages_or_422(
+        total_pages=effective_pages,
+        page_selection=payload.page_selection,
+        range_start_page=payload.range_start_page,
+        range_end_page=payload.range_end_page,
+    )
+
     total = compute_total_cost(
-        pages=effective_pages,
+        pages=selected_pages,
         copies=payload.copies,
         color=payload.color,
         bw_price_per_page=payload.bw_price_per_page,
@@ -238,7 +292,7 @@ def create_quote(payload: PrintJobCreateRequest, request: Request, db: Session =
         storage_key=storage_key,
         file_sha256=file_sha256,
         file_size_bytes=file_size_bytes,
-        pages=effective_pages,
+        pages=selected_pages,
         color=color_mode,
         copies=payload.copies,
         price_per_page=price_per_page,

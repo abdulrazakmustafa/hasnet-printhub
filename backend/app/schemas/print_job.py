@@ -9,6 +9,9 @@ class PrintJobCreateRequest(BaseModel):
     pages: int = Field(..., gt=0, le=2000)
     copies: int = Field(..., gt=0, le=500)
     color: str
+    page_selection: str = "all"
+    range_start_page: int | None = Field(default=None, ge=1, le=2000)
+    range_end_page: int | None = Field(default=None, ge=1, le=2000)
     device_code: str = "prototype-local"
     original_file_name: str = "pending-upload.pdf"
     storage_key: str | None = None
@@ -23,6 +26,14 @@ class PrintJobCreateRequest(BaseModel):
         normalized = value.strip().lower()
         if normalized not in {"bw", "color"}:
             raise ValueError("Unsupported color mode. Use 'bw' or 'color'.")
+        return normalized
+
+    @field_validator("page_selection")
+    @classmethod
+    def validate_page_selection(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"all", "range"}:
+            raise ValueError("page_selection must be 'all' or 'range'.")
         return normalized
 
     @field_validator("device_code")

@@ -7,17 +7,23 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="ambient ambient-left"></div>
-  <div class="ambient ambient-right"></div>
+  <div class="site-strip">Driven by Innovation, Powered by Engineering! Enginnovation</div>
 
   <main class="kiosk-shell">
     <header class="brand">
-      <div class="logo-chip">H</div>
+      <img class="brand-logo" src="/assets/logo-white-2.png" alt="Hasnet ICT Solution">
       <div class="brand-text">
-        <p class="brand-overline">HASNET ICT SOLUTION</p>
         <h1>PrintHub</h1>
+        <p class="brand-note">Simple, secure, and fast self-service printing kiosk.</p>
       </div>
     </header>
+
+    <div class="progress-wrap">
+      <div class="progress-track">
+        <div id="progressBar" class="progress-bar"></div>
+      </div>
+      <p id="stepHint" class="step-hint">Step 1 of 5: Upload</p>
+    </div>
 
     <ol class="stepper" id="stepper">
       <li data-step="1" class="active">Upload</li>
@@ -29,7 +35,12 @@
 
     <section class="panel active" data-step-panel="1">
       <h2>Karibu Hasnet PrintHub</h2>
-      <p class="lead">Upload your PDF document to start printing.</p>
+      <p class="lead">Upload your PDF document and follow simple steps to complete your print.</p>
+      <div class="trust-strip">
+        <span>Payment-verified printing</span>
+        <span>Auto page detection</span>
+        <span>Instant status updates</span>
+      </div>
       <div class="upload-box">
         <label for="pdfFile">Select your document (PDF only)</label>
         <input id="pdfFile" type="file" accept="application/pdf">
@@ -50,18 +61,46 @@
           <span class="label">Pages (Auto)</span>
           <strong id="infoPageCount">-</strong>
         </div>
+        <div class="field full">
+          <label>Page Selection</label>
+          <div class="mode-group">
+            <label class="mode-option active" id="allPagesOption">
+              <input type="radio" name="pageSelection" value="all" checked>
+              <span>Print All Pages</span>
+            </label>
+            <label class="mode-option" id="customPagesOption">
+              <input type="radio" name="pageSelection" value="range">
+              <span>Custom Range</span>
+            </label>
+          </div>
+        </div>
+        <div class="field">
+          <label for="rangeStartPage">From Page</label>
+          <input id="rangeStartPage" type="number" min="1" value="1" disabled>
+        </div>
+        <div class="field">
+          <label for="rangeEndPage">To Page</label>
+          <input id="rangeEndPage" type="number" min="1" value="1" disabled>
+        </div>
         <div class="field">
           <label for="copies">Number of Copies</label>
           <input id="copies" type="number" min="1" value="1">
         </div>
         <div class="field">
           <label>Print Mode</label>
-          <div class="segmented" id="modeSelector">
-            <button type="button" data-mode="bw" class="active">Black & White</button>
-            <button type="button" data-mode="color">Color</button>
+          <div class="mode-group">
+            <label class="mode-option">
+              <input type="radio" name="printMode" value="bw" checked>
+              <span>Black & White</span>
+            </label>
+            <label class="mode-option">
+              <input type="radio" name="printMode" value="color">
+              <span>Color</span>
+            </label>
           </div>
         </div>
       </div>
+      <div id="quickEstimate" class="estimate">Estimated Total: -</div>
       <div class="actions">
         <button id="toStep3Btn" class="btn btn-primary" type="button">Next</button>
       </div>
@@ -71,7 +110,8 @@
       <h2>Order Summary</h2>
       <p class="lead">Review your cost before payment.</p>
       <div class="summary-card">
-        <div><span>Pages</span><strong id="sumPages">-</strong></div>
+        <div><span>Selected Pages</span><strong id="sumPages">-</strong></div>
+        <div><span>Page Selection</span><strong id="sumPageSelection">-</strong></div>
         <div><span>Copies</span><strong id="sumCopies">-</strong></div>
         <div><span>Mode</span><strong id="sumMode">-</strong></div>
         <div><span>Price Per Page</span><strong id="sumUnitPrice">-</strong></div>
@@ -89,20 +129,15 @@
       <div class="detail-grid">
         <div class="field full">
           <label for="fullName">Full Name</label>
-          <input id="fullName" type="text" placeholder="Enter full name">
+          <input id="fullName" type="text" autocomplete="name" placeholder="Enter full name">
         </div>
         <div class="field full">
           <label for="msisdn">Mobile Number</label>
-          <input id="msisdn" type="text" placeholder="+2557XXXXXXXX">
+          <input id="msisdn" type="tel" inputmode="numeric" autocomplete="tel" placeholder="07XXXXXXXX or +2557XXXXXXXX">
         </div>
-        <div class="field">
-          <label for="method">Payment Method</label>
-          <select id="method">
-            <option value="mpesa">M-Pesa</option>
-            <option value="tigo">Tigo Pesa</option>
-            <option value="airtel">Airtel Money</option>
-            <option value="snippe">Snippe</option>
-          </select>
+        <div class="info-tile full">
+          <span class="label">Payment Method</span>
+          <strong>M-Pesa (default)</strong>
         </div>
       </div>
       <div class="actions split">

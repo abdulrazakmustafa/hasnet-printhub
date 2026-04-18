@@ -1,7 +1,15 @@
 (function () {
   const API_BASE = `${window.location.origin}/api/v1`;
   const DEFAULT_DEVICE_CODE = "pi-kiosk-001";
+  const DEFAULT_PAYMENT_METHOD = "mpesa";
   const POLL_INTERVAL_MS = 5000;
+  const STEP_LABELS = {
+    1: "Upload",
+    2: "Print Options",
+    3: "Price",
+    4: "Payment",
+    5: "Finish",
+  };
 
   const state = {
     step: 1,
@@ -16,12 +24,15 @@
       currency: "TZS",
     },
     mode: "bw",
+    pageSelection: "all",
     pollTimer: null,
   };
 
   const $ = (id) => document.getElementById(id);
   const ui = {
     stepper: $("stepper"),
+    progressBar: $("progressBar"),
+    stepHint: $("stepHint"),
     panels: document.querySelectorAll("[data-step-panel]"),
     pdfFile: $("pdfFile"),
     uploadBtn: $("uploadBtn"),
@@ -29,9 +40,14 @@
     infoFileName: $("infoFileName"),
     infoPageCount: $("infoPageCount"),
     copies: $("copies"),
-    modeSelector: $("modeSelector"),
+    modeInputs: document.querySelectorAll('input[name="printMode"]'),
+    pageSelectionInputs: document.querySelectorAll('input[name="pageSelection"]'),
+    rangeStartPage: $("rangeStartPage"),
+    rangeEndPage: $("rangeEndPage"),
+    quickEstimate: $("quickEstimate"),
     toStep3Btn: $("toStep3Btn"),
     sumPages: $("sumPages"),
+    sumPageSelection: $("sumPageSelection"),
     sumCopies: $("sumCopies"),
     sumMode: $("sumMode"),
     sumUnitPrice: $("sumUnitPrice"),
@@ -40,7 +56,6 @@
     toStep4Btn: $("toStep4Btn"),
     fullName: $("fullName"),
     msisdn: $("msisdn"),
-    method: $("method"),
     backToStep3Btn: $("backToStep3Btn"),
     payBtn: $("payBtn"),
     paymentFeedback: $("paymentFeedback"),
@@ -63,8 +78,13 @@
       panel.classList.toggle("active", Number(panel.dataset.stepPanel) === step);
     }
     for (const item of ui.stepper.querySelectorAll("li")) {
-      item.classList.toggle("active", Number(item.dataset.step) === step);
+      const itemStep = Number(item.dataset.step);
+      item.classList.toggle("active", itemStep === step);
+      item.classList.toggle("done", itemStep < step);
     }
+    ui.progressBar.style.width = `${Math.max(1, Math.min(5, step)) * 20}%`;
+    ui.stepHint.textContent = `Step ${step} of 5: ${STEP_LABELS[step] || "Progress"}`;
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function money(value) {
@@ -81,8 +101,53 @@
   function totalCost() {
     if (!state.upload) return 0;
     const copies = Number(ui.copies.value || 1);
-    const pages = Number(state.upload.page_count || 0);
+    const pages = selectedPagesCount();
     return pages * copies * unitPriceForMode(state.mode);
+  }
+
+  function selectedPagesCount() {
+    if (!state.upload) return 0;
+    const totalPages = Number(state.upload.page_count || 0);
+    if (state.pageSelection !== "range") {
+      return totalPages;
+    }
+    const start = Number(ui.rangeStartPage.value || 0);
+    const end = Number(ui.rangeEndPage.value || 0);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end > totalPages) {
+      return 0;
+    }
+    return (end - start) + 1;
+  }
+
+  function pageSelectionLabel() {
+    if (state.pageSelection !== "range") {
+      return "All pages";
+    }
+    return `Pages ${ui.rangeStartPage.value} to ${ui.rangeEndPage.value}`;
+  }
+
+  function renderQuickEstimate() {
+    if (!state.upload) {
+      ui.quickEstimate.textContent = "Estimated Total: -";
+      return;
+    }
+    const selected = selectedPagesCount();
+    const copies = Number(ui.copies.value || 1);
+    const modeLabel = state.mode === "color" ? "Color" : "Black & White";
+    ui.quickEstimate.textContent = `Estimated Total: ${money(totalCost())} (${selected} page(s) x ${copies} copy/copies, ${modeLabel})`;
+  }
+
+  function syncPageRangeUi() {
+    const isRange = state.pageSelection === "range";
+    ui.rangeStartPage.disabled = !isRange;
+    ui.rangeEndPage.disabled = !isRange;
+    for (const input of ui.pageSelectionInputs) {
+      const container = input.closest(".mode-option");
+      if (container) {
+        container.classList.toggle("active", input.checked);
+      }
+    }
+    renderQuickEstimate();
   }
 
   function renderStep2() {
@@ -90,17 +155,33 @@
     ui.infoPageCount.textContent = String(state.upload.page_count);
     ui.copies.value = "1";
     state.mode = "bw";
-    for (const btn of ui.modeSelector.querySelectorAll("button")) {
-      btn.classList.toggle("active", btn.dataset.mode === "bw");
+    state.pageSelection = "all";
+    ui.rangeStartPage.value = "1";
+    ui.rangeEndPage.value = String(state.upload.page_count || 1);
+    ui.rangeStartPage.max = String(state.upload.page_count || 1);
+    ui.rangeEndPage.max = String(state.upload.page_count || 1);
+    for (const input of ui.modeInputs) {
+      const active = input.value === "bw";
+      input.checked = active;
+      const container = input.closest(".mode-option");
+      if (container) {
+        container.classList.toggle("active", active);
+      }
     }
+    for (const input of ui.pageSelectionInputs) {
+      input.checked = input.value === "all";
+    }
+    syncPageRangeUi();
+    renderQuickEstimate();
   }
 
   function renderSummary() {
-    const pages = Number(state.upload.page_count || 0);
+    const pages = selectedPagesCount();
     const copies = Number(ui.copies.value || 1);
     const modeLabel = state.mode === "color" ? "Color" : "Black & White";
     const unitPrice = unitPriceForMode(state.mode);
     ui.sumPages.textContent = String(pages);
+    ui.sumPageSelection.textContent = pageSelectionLabel();
     ui.sumCopies.textContent = String(copies);
     ui.sumMode.textContent = modeLabel;
     ui.sumUnitPrice.textContent = money(unitPrice);
@@ -167,7 +248,7 @@
   }
 
   async function createQuote() {
-    const pages = Number(state.upload.page_count || 0);
+    const pages = selectedPagesCount();
     const copies = Number(ui.copies.value || 1);
     const unitBw = Number(state.pricing.bw_price_per_page || 0);
     const unitColor = Number(state.pricing.color_price_per_page || 0);
@@ -176,6 +257,9 @@
       pages,
       copies,
       color: state.mode,
+      page_selection: state.pageSelection,
+      range_start_page: state.pageSelection === "range" ? Number(ui.rangeStartPage.value || 0) : null,
+      range_end_page: state.pageSelection === "range" ? Number(ui.rangeEndPage.value || 0) : null,
       device_code: DEFAULT_DEVICE_CODE,
       original_file_name: state.upload.file_name,
       upload_id: state.upload.upload_id,
@@ -203,12 +287,24 @@
     return { first: parts[0], last: parts.slice(1).join(" ") };
   }
 
+  function normalizeMsisdn(value) {
+    return String(value || "").trim().replace(/\s+/g, "");
+  }
+
+  function validateMsisdnOrThrow(rawMsisdn) {
+    const normalized = normalizeMsisdn(rawMsisdn);
+    const valid = /^(\+?\d{10,15})$/.test(normalized);
+    if (!valid) {
+      throw new Error("Please enter a valid mobile number.");
+    }
+    return normalized;
+  }
+
   async function createPayment() {
     if (!state.upload) throw new Error("Upload document first.");
     const fullName = ui.fullName.value.trim();
-    const msisdn = ui.msisdn.value.trim();
+    const msisdn = validateMsisdnOrThrow(ui.msisdn.value);
     if (!fullName) throw new Error("Please enter full name.");
-    if (!msisdn) throw new Error("Please enter mobile number.");
 
     setFeedback(ui.paymentFeedback, "warn", "Preparing your print order...");
     state.quote = await createQuote();
@@ -217,7 +313,7 @@
     const paymentPayload = {
       print_job_id: state.quote.job_id,
       amount: Number(state.quote.total_cost),
-      method: ui.method.value,
+      method: DEFAULT_PAYMENT_METHOD,
       msisdn,
       customer_first_name: names.first,
       customer_last_name: names.last,
@@ -319,33 +415,52 @@
     state.status = null;
     state.receipt = null;
     state.mode = "bw";
+    state.pageSelection = "all";
     ui.pdfFile.value = "";
     ui.fullName.value = "";
     ui.msisdn.value = "";
-    ui.method.value = "mpesa";
     ui.copies.value = "1";
+    ui.quickEstimate.textContent = "Estimated Total: -";
     setFeedback(ui.uploadFeedback, "", "");
     setFeedback(ui.paymentFeedback, "", "");
     setStep(1);
   }
 
   function bindModeButtons() {
-    for (const btn of ui.modeSelector.querySelectorAll("button")) {
-      btn.addEventListener("click", () => {
-        state.mode = btn.dataset.mode;
-        for (const peer of ui.modeSelector.querySelectorAll("button")) {
-          peer.classList.toggle("active", peer.dataset.mode === state.mode);
+    for (const input of ui.modeInputs) {
+      input.addEventListener("change", () => {
+        if (!input.checked) return;
+        state.mode = input.value;
+        for (const peer of ui.modeInputs) {
+          const container = peer.closest(".mode-option");
+          if (container) {
+            container.classList.toggle("active", peer.checked);
+          }
         }
+        renderQuickEstimate();
+      });
+    }
+  }
+
+  function bindPageSelection() {
+    for (const input of ui.pageSelectionInputs) {
+      input.addEventListener("change", () => {
+        if (!input.checked) return;
+        state.pageSelection = input.value;
+        syncPageRangeUi();
       });
     }
   }
 
   function bindEvents() {
     ui.uploadBtn.addEventListener("click", async () => {
+      ui.uploadBtn.disabled = true;
       try {
         await uploadDocument();
       } catch (err) {
         setFeedback(ui.uploadFeedback, "bad", err.message || "Upload failed.");
+      } finally {
+        ui.uploadBtn.disabled = false;
       }
     });
 
@@ -354,6 +469,15 @@
       if (copies < 1) {
         setFeedback(ui.uploadFeedback, "bad", "Copies must be at least 1.");
         return;
+      }
+      if (state.pageSelection === "range") {
+        const totalPages = Number(state.upload ? state.upload.page_count : 0);
+        const start = Number(ui.rangeStartPage.value || 0);
+        const end = Number(ui.rangeEndPage.value || 0);
+        if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end < start || end > totalPages) {
+          setFeedback(ui.uploadFeedback, "bad", `Custom page range must be between 1 and ${totalPages}.`);
+          return;
+        }
       }
       renderSummary();
       setStep(3);
@@ -364,12 +488,19 @@
     ui.backToStep3Btn.addEventListener("click", () => setStep(3));
 
     ui.payBtn.addEventListener("click", async () => {
+      ui.payBtn.disabled = true;
       try {
         await createPayment();
       } catch (err) {
         setFeedback(ui.paymentFeedback, "bad", err.message || "Payment request failed.");
+      } finally {
+        ui.payBtn.disabled = false;
       }
     });
+
+    ui.copies.addEventListener("input", renderQuickEstimate);
+    ui.rangeStartPage.addEventListener("input", renderQuickEstimate);
+    ui.rangeEndPage.addEventListener("input", renderQuickEstimate);
 
     ui.newPrintBtn.addEventListener("click", resetFlow);
   }
@@ -377,6 +508,7 @@
   async function init() {
     await loadPricing();
     bindModeButtons();
+    bindPageSelection();
     bindEvents();
     setStep(1);
   }

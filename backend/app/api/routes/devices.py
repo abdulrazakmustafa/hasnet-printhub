@@ -17,6 +17,7 @@ from app.schemas.device import (
     DeviceNextJobResponse,
 )
 from app.services.payment_gateway import sync_pending_payments
+from app.services.upload_storage import delete_upload_artifacts, parse_upload_id_from_storage_key
 
 router = APIRouter()
 
@@ -183,6 +184,20 @@ def update_job_status(
     if new_status == JobStatus.printed:
         job.printed_at = datetime.now(timezone.utc)
         job.failure_reason = None
+        upload_id = parse_upload_id_from_storage_key(job.storage_key)
+        if upload_id:
+            removed = delete_upload_artifacts(upload_id)
+            db.add(
+                LogEntry(
+                    device_id=device.id,
+                    print_job_id=job.id,
+                    payment_id=None,
+                    level="info",
+                    event_type="job.upload.cleanup",
+                    message="Removed uploaded PDF artifacts after successful print.",
+                    payload={"upload_id": upload_id, "removed": removed},
+                )
+            )
     elif new_status == JobStatus.failed:
         job.failure_reason = payload.failure_reason or "Edge device reported job failure."
 
