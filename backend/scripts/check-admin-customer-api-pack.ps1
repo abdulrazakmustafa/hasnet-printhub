@@ -20,6 +20,7 @@ $devicesUrl = "$ApiBaseUrl/admin/devices?include_inactive=false"
 $alertsUrl = "$ApiBaseUrl/alerts?limit=$Limit"
 $paymentsUrl = "$ApiBaseUrl/admin/payments?limit=$Limit"
 $pendingIncidentsUrl = "$ApiBaseUrl/admin/payments/pending-incidents?limit=$Limit"
+$dashboardSnapshotUrl = "$ApiBaseUrl/admin/dashboard/snapshot?recent_payments_limit=$Limit&pending_incidents_limit=$Limit"
 $reportUrl = "$ApiBaseUrl/admin/reports/today"
 
 Write-Host ""
@@ -42,6 +43,14 @@ Write-Host ("GET {0}" -f $pendingIncidentsUrl) -ForegroundColor DarkCyan
 $pendingIncidents = Invoke-RestMethod -Method GET -Uri $pendingIncidentsUrl
 Write-Host ("- pending_incidents_count: {0}" -f (@($pendingIncidents.items).Count))
 Write-Host ("- escalated_incidents_count: {0}" -f $pendingIncidents.escalated_count)
+
+Write-Host ""
+Write-Host ("GET {0}" -f $dashboardSnapshotUrl) -ForegroundColor DarkCyan
+$dashboardSnapshot = Invoke-RestMethod -Method GET -Uri $dashboardSnapshotUrl
+Write-Host ("- dashboard_confirmed_payments_today: {0}" -f $dashboardSnapshot.kpis.confirmed_payments_today)
+Write-Host ("- dashboard_printed_jobs_today: {0}" -f $dashboardSnapshot.kpis.printed_jobs_today)
+Write-Host ("- dashboard_pending_incidents: {0}" -f $dashboardSnapshot.kpis.pending_incidents)
+Write-Host ("- dashboard_recent_payments_count: {0}" -f $dashboardSnapshot.recent_payments.count)
 
 Write-Host ""
 Write-Host ("GET {0}" -f $reportUrl) -ForegroundColor DarkCyan
@@ -85,6 +94,7 @@ Write-Host ("- /admin/devices: OK ({0} items)" -f (@($devices.items).Count))
 Write-Host ("- /alerts: OK ({0} items)" -f (@($alerts.items).Count))
 Write-Host ("- /admin/payments: OK ({0} items)" -f (@($payments.items).Count))
 Write-Host ("- /admin/payments/pending-incidents: OK ({0} items)" -f (@($pendingIncidents.items).Count))
+Write-Host "- /admin/dashboard/snapshot: OK"
 Write-Host "- /admin/reports/today: OK"
 if (-not [string]::IsNullOrWhiteSpace($JobId)) {
     Write-Host "- /print-jobs/{job_id}/customer-status: OK"

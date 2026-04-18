@@ -272,6 +272,52 @@ def admin_pending_payment_incidents(
     }
 
 
+@router.get("/dashboard/snapshot")
+def admin_dashboard_snapshot(
+    recent_payments_limit: int = Query(default=10, ge=1, le=50),
+    pending_incidents_limit: int = Query(default=25, ge=1, le=200),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    generated_at_utc = datetime.now(timezone.utc)
+    report = admin_report_today(db=db)
+    recent_payments = admin_payments(
+        limit=recent_payments_limit,
+        payment_status=None,
+        method=None,
+        provider=None,
+        device_code=None,
+        db=db,
+    )
+    pending_incidents = admin_pending_payment_incidents(
+        limit=pending_incidents_limit,
+        escalated_only=False,
+        method=None,
+        device_code=None,
+        db=db,
+    )
+
+    return {
+        "generated_at_utc": generated_at_utc,
+        "window": report["window"],
+        "kpis": {
+            "confirmed_payments_today": report["payments"]["confirmed"],
+            "confirmed_amount_today": report["payments"]["confirmed_amount"],
+            "printed_jobs_today": report["jobs"]["printed"],
+            "active_devices": report["devices"]["active"],
+            "online_devices": report["devices"]["online"],
+            "active_alerts": report["alerts"]["active"],
+            "pending_incidents": pending_incidents["count"],
+            "escalated_pending_incidents": pending_incidents["escalated_count"],
+        },
+        "report_today": report,
+        "pending_incidents": pending_incidents,
+        "recent_payments": {
+            "count": recent_payments["count"],
+            "items": recent_payments["items"],
+        },
+    }
+
+
 @router.get("/reports/today")
 def admin_report_today(db: Session = Depends(get_db)) -> dict[str, Any]:
     now_utc = datetime.now(timezone.utc)
