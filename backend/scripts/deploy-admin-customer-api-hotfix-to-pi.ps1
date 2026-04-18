@@ -71,6 +71,7 @@ $verifyCommand = @(
     "curl -sS 'http://127.0.0.1:$ApiPort/api/v1/admin/devices?include_inactive=false'",
     "curl -sS 'http://127.0.0.1:$ApiPort/api/v1/alerts?limit=1'",
     "curl -sS 'http://127.0.0.1:$ApiPort/api/v1/admin/payments?limit=1'",
+    "curl -sS 'http://127.0.0.1:$ApiPort/api/v1/admin/payments/pending-incidents?limit=1'",
     "curl -sS 'http://127.0.0.1:$ApiPort/api/v1/admin/reports/today'"
 ) -join "; "
 

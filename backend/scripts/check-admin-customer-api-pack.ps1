@@ -19,6 +19,7 @@ Write-Host ("ApiBaseUrl: {0}" -f $ApiBaseUrl) -ForegroundColor Cyan
 $devicesUrl = "$ApiBaseUrl/admin/devices?include_inactive=false"
 $alertsUrl = "$ApiBaseUrl/alerts?limit=$Limit"
 $paymentsUrl = "$ApiBaseUrl/admin/payments?limit=$Limit"
+$pendingIncidentsUrl = "$ApiBaseUrl/admin/payments/pending-incidents?limit=$Limit"
 $reportUrl = "$ApiBaseUrl/admin/reports/today"
 
 Write-Host ""
@@ -35,6 +36,12 @@ Write-Host ""
 Write-Host ("GET {0}" -f $paymentsUrl) -ForegroundColor DarkCyan
 $payments = Invoke-RestMethod -Method GET -Uri $paymentsUrl
 Write-Host ("- payments_count: {0}" -f (@($payments.items).Count))
+
+Write-Host ""
+Write-Host ("GET {0}" -f $pendingIncidentsUrl) -ForegroundColor DarkCyan
+$pendingIncidents = Invoke-RestMethod -Method GET -Uri $pendingIncidentsUrl
+Write-Host ("- pending_incidents_count: {0}" -f (@($pendingIncidents.items).Count))
+Write-Host ("- escalated_incidents_count: {0}" -f $pendingIncidents.escalated_count)
 
 Write-Host ""
 Write-Host ("GET {0}" -f $reportUrl) -ForegroundColor DarkCyan
@@ -77,6 +84,7 @@ Write-Host "Smoke Summary" -ForegroundColor Green
 Write-Host ("- /admin/devices: OK ({0} items)" -f (@($devices.items).Count))
 Write-Host ("- /alerts: OK ({0} items)" -f (@($alerts.items).Count))
 Write-Host ("- /admin/payments: OK ({0} items)" -f (@($payments.items).Count))
+Write-Host ("- /admin/payments/pending-incidents: OK ({0} items)" -f (@($pendingIncidents.items).Count))
 Write-Host "- /admin/reports/today: OK"
 if (-not [string]::IsNullOrWhiteSpace($JobId)) {
     Write-Host "- /print-jobs/{job_id}/customer-status: OK"

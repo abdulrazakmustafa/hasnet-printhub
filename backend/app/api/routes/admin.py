@@ -6,6 +6,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.config import settings
 from app.models.alert import Alert
 from app.models.device import Device
 from app.models.enums import AlertStatus, DeviceStatus, JobStatus, PaymentMethod, PaymentStatus
@@ -38,6 +39,61 @@ def _parse_payment_method_filter(value: str | None) -> PaymentMethod | None:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="method must be one of: tigo, mpesa, airtel, snippe",
         ) from exc
+
+
+def _pending_reference_time(payment: Payment, job: PrintJob) -> datetime:
+    pending_since = payment.requested_at or job.created_at
+    if pending_since.tzinfo is None:
+        return pending_since.replace(tzinfo=timezone.utc)
+    return pending_since.astimezone(timezone.utc)
+
+
+def _pending_escalation_threshold_minutes() -> int:
+    raw_value = getattr(settings, "customer_pending_escalation_minutes", 10)
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError):
+        return 10
+    return min(max(parsed, 1), 1440)
+
+
+def _build_pending_incident_item(
+    *,
+    payment: Payment,
+    job: PrintJob,
+    resolved_device_code: str | None,
+    now_utc: datetime,
+) -> dict[str, Any]:
+    pending_since = _pending_reference_time(payment, job)
+    pending_minutes = max(0, int((now_utc - pending_since).total_seconds() // 60))
+    threshold_minutes = _pending_escalation_threshold_minutes()
+    escalated = pending_minutes >= threshold_minutes
+    recommendation = (
+        "Run reconcile and verify provider reference now; only retry after confirming prior attempt did not complete."
+        if escalated
+        else "Await provider confirmation, then run reconcile if still pending."
+    )
+
+    return {
+        "payment_id": str(payment.id),
+        "provider": payment.provider,
+        "method": payment.method.value,
+        "status": payment.status.value,
+        "amount": float(payment.amount),
+        "currency": payment.currency,
+        "provider_request_id": payment.provider_request_id,
+        "provider_transaction_ref": payment.provider_transaction_ref,
+        "requested_at": payment.requested_at,
+        "updated_at": payment.updated_at,
+        "print_job_id": str(job.id),
+        "print_job_status": job.status.value,
+        "print_job_payment_status": job.payment_status.value,
+        "device_code": resolved_device_code,
+        "pending_minutes": pending_minutes,
+        "escalation_threshold_minutes": threshold_minutes,
+        "escalated": escalated,
+        "recommended_action": recommendation,
+    }
 
 
 @router.get("/devices")
@@ -161,6 +217,59 @@ def admin_payments(
         )
 
     return {"items": items, "count": len(items)}
+
+
+@router.get("/payments/pending-incidents")
+def admin_pending_payment_incidents(
+    limit: int = Query(default=50, ge=1, le=200),
+    escalated_only: bool = Query(default=False),
+    method: str | None = Query(default=None),
+    device_code: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    method_filter = _parse_payment_method_filter(method)
+    device_filter = device_code.strip() if device_code and device_code.strip() else None
+    now_utc = datetime.now(timezone.utc)
+
+    query = (
+        select(Payment, PrintJob, Device.device_code)
+        .join(PrintJob, PrintJob.id == Payment.print_job_id)
+        .join(Device, Device.id == PrintJob.device_id, isouter=True)
+        .where(
+            Payment.status == PaymentStatus.pending,
+            PrintJob.payment_status == PaymentStatus.pending,
+        )
+        .order_by(Payment.requested_at.asc(), Payment.created_at.asc())
+        .limit(limit)
+    )
+
+    if method_filter is not None:
+        query = query.where(Payment.method == method_filter)
+    if device_filter is not None:
+        query = query.where(Device.device_code == device_filter)
+
+    rows = db.execute(query).all()
+    items: list[dict[str, Any]] = []
+    escalated_count = 0
+    for payment, job, resolved_device_code in rows:
+        incident = _build_pending_incident_item(
+            payment=payment,
+            job=job,
+            resolved_device_code=resolved_device_code,
+            now_utc=now_utc,
+        )
+        if incident["escalated"]:
+            escalated_count += 1
+        if escalated_only and not incident["escalated"]:
+            continue
+        items.append(incident)
+
+    return {
+        "items": items,
+        "count": len(items),
+        "escalated_count": escalated_count,
+        "escalation_threshold_minutes": _pending_escalation_threshold_minutes(),
+    }
 
 
 @router.get("/reports/today")
