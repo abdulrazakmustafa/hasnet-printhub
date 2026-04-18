@@ -5,7 +5,9 @@ param(
     [switch]$SkipBackend,
     [switch]$SkipAgent,
     [switch]$ValidateOnly,
-    [switch]$AllowInsecurePlaceholders
+    [switch]$AllowInsecurePlaceholders,
+    [switch]$RunPostSmoke,
+    [int]$SmokeLimit = 5
 )
 
 Set-StrictMode -Version Latest
@@ -66,6 +68,37 @@ function Get-IntOrDefault {
     return [int]$Value
 }
 
+function Get-OriginFromApiBaseUrl {
+    param(
+        [AllowNull()]
+        [string]$ApiBaseUrl,
+        [Parameter(Mandatory = $true)]
+        [string]$FallbackHost,
+        [Parameter(Mandatory = $true)]
+        [int]$FallbackPort
+    )
+
+    $fallback = "http://${FallbackHost}:$FallbackPort"
+    if ([string]::IsNullOrWhiteSpace($ApiBaseUrl)) {
+        return $fallback
+    }
+
+    try {
+        $uri = [System.Uri]$ApiBaseUrl
+        if (-not $uri.Scheme -or -not $uri.Host) {
+            return $fallback
+        }
+
+        if (($uri.Scheme -eq "http" -and $uri.Port -eq 80) -or ($uri.Scheme -eq "https" -and $uri.Port -eq 443)) {
+            return "{0}://{1}" -f $uri.Scheme, $uri.Host
+        }
+        return "{0}://{1}:{2}" -f $uri.Scheme, $uri.Host, $uri.Port
+    }
+    catch {
+        return $fallback
+    }
+}
+
 function Invoke-StepScript {
     param(
         [Parameter(Mandatory = $true)]
@@ -120,6 +153,12 @@ foreach ($requiredScript in @($backendBootstrapPath, $agentBootstrapPath)) {
         throw "Required provisioning script not found: $requiredScript"
     }
 }
+
+if ($SmokeLimit -lt 1 -or $SmokeLimit -gt 50) {
+    throw "SmokeLimit must be between 1 and 50."
+}
+
+$postSmokeScriptPath = Join-Path $repoRoot "backend\scripts\check-admin-customer-api-pack.ps1"
 
 $backendCfg = $profile.backend
 $backendEnabled = if ($null -eq $backendCfg) { $true } else { Get-BoolOrDefault -Value $backendCfg.enabled -Default $true }
@@ -246,11 +285,36 @@ if ($agentWillRun) {
     }
 }
 
+$resolvedApiBaseUrl = ""
+if ($backendWillRun) {
+    $resolvedApiBaseUrl = "http://${piHost}:$($backendParams.Port)/api/v1"
+}
+elseif ($agentWillRun -and -not [string]::IsNullOrWhiteSpace([string]$agentParams.BackendBaseUrl)) {
+    $resolvedApiBaseUrl = [string]$agentParams.BackendBaseUrl
+}
+else {
+    $resolvedApiBaseUrl = "http://${piHost}:8000/api/v1"
+}
+
+$fallbackPort = if ($backendWillRun) { [int]$backendParams.Port } else { 8000 }
+$resolvedOrigin = Get-OriginFromApiBaseUrl -ApiBaseUrl $resolvedApiBaseUrl -FallbackHost $piHost -FallbackPort $fallbackPort
+$resolvedCustomerUrl = "{0}/customer-app/" -f $resolvedOrigin.TrimEnd("/")
+$resolvedAdminUrl = "{0}/admin-app/" -f $resolvedOrigin.TrimEnd("/")
+$resolvedQrEntryUrl = "{0}/customer-start" -f $resolvedOrigin.TrimEnd("/")
+
 $summary = [ordered]@{
     kiosk_id = $kioskId
     profile_path = $resolvedProfilePath
     target = "$piUser@$piHost"
     validate_only = [bool]$ValidateOnly
+    run_post_smoke = [bool]$RunPostSmoke
+    smoke_limit = [int]$SmokeLimit
+    urls = [ordered]@{
+        api_base = $resolvedApiBaseUrl
+        customer_app = $resolvedCustomerUrl
+        admin_app = $resolvedAdminUrl
+        qr_entry = $resolvedQrEntryUrl
+    }
     backend = [ordered]@{
         enabled = [bool]$backendEnabled
         skipped = [bool]$SkipBackend
@@ -269,6 +333,13 @@ Write-Host ($summary | ConvertTo-Json -Depth 8)
 
 if ($ValidateOnly) {
     Write-Host ""
+    Write-Host ("Planned API base: {0}" -f $resolvedApiBaseUrl) -ForegroundColor Cyan
+    Write-Host ("Planned customer app URL: {0}" -f $resolvedCustomerUrl) -ForegroundColor Cyan
+    Write-Host ("Planned admin app URL: {0}" -f $resolvedAdminUrl) -ForegroundColor Cyan
+    Write-Host ("Planned QR entry URL: {0}" -f $resolvedQrEntryUrl) -ForegroundColor Cyan
+    if ($RunPostSmoke) {
+        Write-Host "Post-smoke is enabled but skipped in validation-only mode." -ForegroundColor DarkYellow
+    }
     Write-Host "Validation-only mode completed. No remote changes were executed." -ForegroundColor Green
     exit 0
 }
@@ -287,5 +358,19 @@ else {
     Write-Host "Skipping edge-agent bootstrap." -ForegroundColor DarkYellow
 }
 
+if ($RunPostSmoke) {
+    if (-not (Test-Path -LiteralPath $postSmokeScriptPath)) {
+        throw "Post-smoke script not found: $postSmokeScriptPath"
+    }
+    $smokeArgs = @{
+        ApiBaseUrl = $resolvedApiBaseUrl
+        Limit = $SmokeLimit
+    }
+    Invoke-StepScript -StepName "Post-Provision Admin/Customer Smoke" -ScriptPath $postSmokeScriptPath -Arguments $smokeArgs
+}
+
 Write-Host ""
 Write-Host ("Kiosk provisioning completed for {0} ({1})." -f $kioskId, "$piUser@$piHost") -ForegroundColor Green
+Write-Host ("Customer App: {0}" -f $resolvedCustomerUrl) -ForegroundColor Cyan
+Write-Host ("Admin App: {0}" -f $resolvedAdminUrl) -ForegroundColor Cyan
+Write-Host ("Customer QR Entry: {0}" -f $resolvedQrEntryUrl) -ForegroundColor Cyan

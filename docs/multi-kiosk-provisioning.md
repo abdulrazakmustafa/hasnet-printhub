@@ -8,6 +8,8 @@ This runbook standardizes provisioning of additional Raspberry Pi kiosks so each
 2. One provisioning command to install/update backend + edge-agent.
 3. Validation-only mode before touching the remote Pi.
 4. Reusable process for new kiosk rollout.
+5. Standard output URLs for customer app, admin app, and QR entry.
+6. Optional one-command post-provision smoke check.
 
 ## 2) Files added for this flow
 
@@ -55,6 +57,18 @@ Optional flags:
    - `-SkipAgent`
 2. Edge-agent only:
    - `-SkipBackend`
+3. Run admin/customer smoke automatically after provisioning:
+   - `-RunPostSmoke`
+   - Optional custom limit: `-SmokeLimit 10`
+
+Example:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\provision-kiosk-from-profile.ps1 `
+  -ProfilePath .\kiosk-profiles\kiosk-001.local.json `
+  -RunPostSmoke `
+  -SmokeLimit 5
+```
 
 ## 6) Post-provision smoke checks
 
@@ -65,9 +79,21 @@ Optional flags:
 3. Physical print verification:
    - Run one real paid print and confirm paper output.
 
-## 7) Rollout recommendation for many kiosks
+## 7) Standard URLs after clone
+
+After provisioning, the script prints these URLs:
+
+1. Customer app:
+   - `http://<pi-host>:8000/customer-app/`
+2. Admin app:
+   - `http://<pi-host>:8000/admin-app/`
+3. QR entry URL (for customer scan):
+   - `http://<pi-host>:8000/customer-start`
+
+## 8) Rollout recommendation for many kiosks
 
 1. Build and test on one canary kiosk first.
 2. Copy profile and update only kiosk-specific values (`host`, `device_code`, `site_name`, token).
 3. Provision kiosks in small batches.
 4. Run smoke checks after each kiosk before moving to next.
+5. Verify QR scan from phone reaches customer upload page (`/customer-start` -> `/customer-app`).
