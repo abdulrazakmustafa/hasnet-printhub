@@ -139,6 +139,20 @@ def _parse_json_response(response: httpx.Response) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {"raw": parsed}
 
 
+def _payment_payload_bundle(request_payload: Mapping[str, Any], response_payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "request": dict(request_payload),
+        "response": dict(response_payload),
+    }
+
+
+def _merge_payment_payload(existing_payload: object, key: str, value: Mapping[str, Any]) -> dict[str, Any]:
+    merged = existing_payload if isinstance(existing_payload, dict) else {}
+    output = dict(merged)
+    output[key] = dict(value)
+    return output
+
+
 def _validate_payment_request_state(
     payload: PaymentCreateRequest,
     print_job: "PrintJob",
@@ -280,7 +294,7 @@ def create_mixx_payment(payload: PaymentCreateRequest, db: Session) -> PaymentCr
         status=PaymentStatus.pending,
         provider_request_id=reference_id,
         provider_transaction_ref=None,
-        provider_payload=response_payload,
+        provider_payload=_payment_payload_bundle(body, response_payload),
         confirmed_at=None,
     )
     db.add(payment)
@@ -398,7 +412,7 @@ def create_snippe_payment(payload: PaymentCreateRequest, db: Session) -> Payment
         status=provider_status,
         provider_request_id=provider_request_id,
         provider_transaction_ref=provider_transaction_ref,
-        provider_payload=response_payload,
+        provider_payload=_payment_payload_bundle(body, response_payload),
         confirmed_at=datetime.now(timezone.utc) if provider_status == PaymentStatus.confirmed else None,
     )
     db.add(payment)
@@ -543,7 +557,7 @@ def handle_mixx_webhook(raw_body: bytes, headers: Mapping[str, str], db: Session
 
     payment.status = mapped_status
     payment.webhook_received_at = datetime.now(timezone.utc)
-    payment.provider_payload = payload
+    payment.provider_payload = _merge_payment_payload(payment.provider_payload, "last_webhook", payload)
     if provider_transaction_ref:
         payment.provider_transaction_ref = provider_transaction_ref
     if mapped_status == PaymentStatus.confirmed and payment.confirmed_at is None:
@@ -652,7 +666,7 @@ def handle_snippe_webhook(raw_body: bytes, headers: Mapping[str, str], db: Sessi
 
     payment.status = provider_status
     payment.webhook_received_at = datetime.now(timezone.utc)
-    payment.provider_payload = payload
+    payment.provider_payload = _merge_payment_payload(payment.provider_payload, "last_webhook", payload)
     if provider_transaction_ref:
         payment.provider_transaction_ref = provider_transaction_ref
     if provider_status == PaymentStatus.confirmed and payment.confirmed_at is None:
@@ -766,7 +780,7 @@ def sync_pending_snippe_payments(db: Session, *, device_id: uuid.UUID | None = N
             mapped_status = _map_snippe_status(data.get("status"))
 
             payment.webhook_received_at = datetime.now(timezone.utc)
-            payment.provider_payload = response_payload
+            payment.provider_payload = _merge_payment_payload(payment.provider_payload, "last_sync", response_payload)
 
             provider_transaction_ref = data.get("external_reference")
             if provider_transaction_ref:

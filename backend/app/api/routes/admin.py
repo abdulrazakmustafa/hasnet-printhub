@@ -71,6 +71,52 @@ def _pending_escalation_threshold_minutes() -> int:
     return min(max(parsed, 1), 1440)
 
 
+def _safe_text(value: object | None) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def _safe_dict(value: object | None) -> dict[str, object]:
+    return value if isinstance(value, dict) else {}
+
+
+def _extract_customer_name(payment: Payment) -> str | None:
+    payload = _safe_dict(payment.provider_payload)
+    request_payload = _safe_dict(payload.get("request"))
+    customer_payload = _safe_dict(request_payload.get("customer"))
+    first_name = _safe_text(customer_payload.get("firstname"))
+    last_name = _safe_text(customer_payload.get("lastname"))
+    if first_name or last_name:
+        return " ".join(part for part in [first_name, last_name] if part)
+
+    for key in ("CustomerName", "customer_name", "full_name", "name"):
+        found = _safe_text(request_payload.get(key))
+        if found:
+            return found
+
+    webhook_payload = _safe_dict(payload.get("last_webhook"))
+    for key in ("CustomerName", "customer_name", "full_name", "name"):
+        found = _safe_text(webhook_payload.get(key))
+        if found:
+            return found
+    return None
+
+
+def _extract_customer_msisdn(payment: Payment) -> str | None:
+    payload = _safe_dict(payment.provider_payload)
+    request_payload = _safe_dict(payload.get("request"))
+    response_payload = _safe_dict(payload.get("response"))
+    webhook_payload = _safe_dict(payload.get("last_webhook"))
+
+    keys = ("phone_number", "CustomerMSISDN", "msisdn", "customer_msisdn", "MSISDN")
+    for source in (request_payload, response_payload, webhook_payload):
+        for key in keys:
+            found = _safe_text(source.get(key))
+            if found:
+                return found
+    return None
+
+
 def _build_pending_incident_item(
     *,
     payment: Payment,
@@ -221,11 +267,17 @@ def admin_payments(
                 "currency": payment.currency,
                 "provider_request_id": payment.provider_request_id,
                 "provider_transaction_ref": payment.provider_transaction_ref,
+                "customer_name": _extract_customer_name(payment),
+                "customer_msisdn": _extract_customer_msisdn(payment),
                 "failure_code": payment.failure_code,
                 "failure_message": payment.failure_message,
                 "print_job_id": str(job.id),
                 "print_job_status": job.status.value,
                 "print_job_payment_status": job.payment_status.value,
+                "document_name": job.original_file_name,
+                "pages": int(job.pages),
+                "copies": int(job.copies),
+                "color_mode": job.color.value,
                 "device_code": resolved_device_code,
             }
         )

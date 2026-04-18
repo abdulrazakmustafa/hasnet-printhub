@@ -145,6 +145,30 @@
     return `<span class="chip ${tone}">${escapeHtml(text || "-")}</span>`;
   }
 
+  function paymentPayerLabel(item) {
+    const name = String(item.customer_name || "").trim();
+    const msisdn = String(item.customer_msisdn || "").trim();
+    if (name && msisdn) return `${name} | ${msisdn}`;
+    if (name) return name;
+    if (msisdn) return msisdn;
+    return "-";
+  }
+
+  function paymentDocumentLabel(item) {
+    const documentName = String(item.document_name || "").trim();
+    const pages = Number(item.pages || 0);
+    const copies = Number(item.copies || 0);
+    const color = String(item.color_mode || "").trim();
+    const pieces = [];
+    if (pages > 0) pieces.push(`${pages}p`);
+    if (copies > 0) pieces.push(`${copies}x`);
+    if (color) pieces.push(color);
+    if (!documentName && pieces.length < 1) return "-";
+    if (!documentName) return pieces.join(" | ");
+    if (pieces.length < 1) return documentName;
+    return `${documentName} (${pieces.join(" | ")})`;
+  }
+
   function queryString(params) {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
@@ -266,6 +290,8 @@
         <td>${chip(item.method)}</td>
         <td>${chip(item.status)}</td>
         <td>${escapeHtml(toMoney(item.amount, item.currency))}</td>
+        <td>${escapeHtml(paymentPayerLabel(item))}</td>
+        <td>${escapeHtml(paymentDocumentLabel(item))}</td>
         <td>${escapeHtml(item.print_job_id)}</td>
         <td>${escapeHtml(item.device_code || "-")}</td>
       </tr>
