@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 _BLOCKED_LOG_INTERVAL_SEC = 60
 _last_blocked_log_at = 0.0
 _last_blocked_status = ""
+_CUPS_REQUEST_ID_RE = re.compile(r"request id is (?P<request_id>[^\s]+)", re.IGNORECASE)
 
 
 def _auth_headers(settings: AgentSettings) -> dict[str, str]:
@@ -136,7 +138,15 @@ def _download_job_pdf_with_retry(
     )
 
 
-def _submit_to_cups(settings: AgentSettings, file_path: Path) -> None:
+def _extract_cups_request_id(output: str) -> str | None:
+    match = _CUPS_REQUEST_ID_RE.search(output or "")
+    if not match:
+        return None
+    request_id = (match.group("request_id") or "").strip()
+    return request_id or None
+
+
+def _submit_to_cups(settings: AgentSettings, file_path: Path) -> tuple[str, str]:
     target_printer = resolve_printer_name(settings)
     if not target_printer:
         raise RuntimeError("No printer configured or discovered. Set PRINTER_NAME or enable auto-discovery.")
@@ -146,12 +156,69 @@ def _submit_to_cups(settings: AgentSettings, file_path: Path) -> None:
     cmd.append(str(file_path))
 
     result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=20)
+    detail = (result.stdout or "") + "\n" + (result.stderr or "")
     if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip() or f"lp exit code {result.returncode}"
+        detail = detail.strip() or f"lp exit code {result.returncode}"
         raise RuntimeError(detail)
+    request_id = _extract_cups_request_id(detail)
+    if not request_id:
+        raise RuntimeError(f"Unable to parse CUPS request id from lp output: {_compact_text(detail)}")
+    return request_id, target_printer
 
 
-def _submit_to_cups_with_retry(settings: AgentSettings, *, file_path: Path, job_id: str) -> None:
+def _list_active_cups_jobs(settings: AgentSettings, printer_name: str) -> set[str]:
+    commands = (
+        [settings.cups_lpstat_path, "-W", "not-completed", "-o", printer_name],
+        [settings.cups_lpstat_path, "-o", printer_name],
+    )
+    output = ""
+    for cmd in commands:
+        result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=8)
+        output = ((result.stdout or "") + "\n" + (result.stderr or "")).strip()
+        if result.returncode == 0:
+            break
+
+    active_jobs: set[str] = set()
+    for raw in output.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if not line.lower().startswith(printer_name.lower() + "-"):
+            continue
+        active_jobs.add(line.split()[0])
+    return active_jobs
+
+
+def _wait_for_cups_completion(settings: AgentSettings, *, request_id: str, printer_name: str, job_id: str) -> None:
+    deadline = time.monotonic() + settings.print_complete_timeout_sec
+    last_details = ""
+    while time.monotonic() < deadline:
+        snapshot = read_device_snapshot(settings)
+        last_details = snapshot.details
+        active_jobs = _list_active_cups_jobs(settings, printer_name)
+        if request_id not in active_jobs:
+            return
+        if snapshot.printer_status in {"paper_out", "paper_jam", "paused", "error", "offline", "queue_stuck"}:
+            raise RuntimeError(
+                f"Printer blocked while waiting for CUPS completion ({snapshot.printer_status}): "
+                f"{_compact_text(snapshot.details)}"
+            )
+        logger.info(
+            "Waiting for CUPS completion for job %s (request_id=%s, printer_status=%s, active_jobs=%s)",
+            job_id,
+            request_id,
+            snapshot.printer_status,
+            ",".join(sorted(active_jobs)) or "none",
+        )
+        time.sleep(settings.print_complete_poll_interval_sec)
+
+    raise RuntimeError(
+        f"Timed out waiting for CUPS completion for request {request_id}. Last printer details: "
+        f"{_compact_text(last_details, limit=260)}"
+    )
+
+
+def _submit_to_cups_with_retry(settings: AgentSettings, *, file_path: Path, job_id: str) -> tuple[str, str]:
     last_error = ""
     for attempt in range(1, settings.print_submit_retry_attempts + 1):
         snapshot = read_device_snapshot(settings)
@@ -159,8 +226,7 @@ def _submit_to_cups_with_retry(settings: AgentSettings, *, file_path: Path, job_
             last_error = f"Printer not ready ({snapshot.printer_status}). {snapshot.details}"
         else:
             try:
-                _submit_to_cups(settings, file_path)
-                return
+                return _submit_to_cups(settings, file_path)
             except RuntimeError as exc:
                 last_error = str(exc)
 
@@ -208,7 +274,8 @@ def process_one_job(session: requests.Session, settings: AgentSettings) -> bool:
                 storage_key=storage_key,
             )
             try:
-                _submit_to_cups_with_retry(settings, file_path=file_path, job_id=job_id)
+                request_id, printer_name = _submit_to_cups_with_retry(settings, file_path=file_path, job_id=job_id)
+                _wait_for_cups_completion(settings, request_id=request_id, printer_name=printer_name, job_id=job_id)
             finally:
                 file_path.unlink(missing_ok=True)
         post_job_status(session, settings, job_id=job_id, status="printed")

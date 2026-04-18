@@ -45,6 +45,8 @@ class AgentSettings:
     retry_backoff_sec: int
     download_retry_attempts: int
     print_submit_retry_attempts: int
+    print_complete_timeout_sec: int
+    print_complete_poll_interval_sec: int
     agent_version: str
     firmware_version: str
     mock_print: bool
@@ -80,6 +82,8 @@ def load_settings(base_dir: Path | None = None) -> AgentSettings:
         retry_backoff_sec=max(1, _as_int(os.getenv("RETRY_BACKOFF_SEC"), default=2)),
         download_retry_attempts=max(1, _as_int(os.getenv("DOWNLOAD_RETRY_ATTEMPTS"), default=3)),
         print_submit_retry_attempts=max(1, _as_int(os.getenv("PRINT_SUBMIT_RETRY_ATTEMPTS"), default=3)),
+        print_complete_timeout_sec=max(30, _as_int(os.getenv("PRINT_COMPLETE_TIMEOUT_SEC"), default=300)),
+        print_complete_poll_interval_sec=max(2, _as_int(os.getenv("PRINT_COMPLETE_POLL_INTERVAL_SEC"), default=5)),
         agent_version=os.getenv("AGENT_VERSION", "0.1.0").strip() or "0.1.0",
         firmware_version=os.getenv("FIRMWARE_VERSION", "unknown").strip() or "unknown",
         mock_print=_as_bool(os.getenv("MOCK_PRINT"), default=True),
