@@ -12,6 +12,7 @@ class PrintJobCreateRequest(BaseModel):
     device_code: str = "prototype-local"
     original_file_name: str = "pending-upload.pdf"
     storage_key: str | None = None
+    upload_id: str | None = None
     bw_price_per_page: float = Field(..., ge=0)
     color_price_per_page: float = Field(..., ge=0)
     currency: str = "TZS"
@@ -76,6 +77,20 @@ class PrintJobCreateRequest(BaseModel):
             raise ValueError("storage_key must not contain parent-directory traversal.")
         return normalized
 
+    @field_validator("upload_id")
+    @classmethod
+    def validate_upload_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        try:
+            uuid.UUID(normalized)
+        except ValueError as exc:
+            raise ValueError("upload_id must be a valid UUID.") from exc
+        return normalized
+
     @field_validator("currency")
     @classmethod
     def validate_currency(cls, value: str) -> str:
@@ -93,10 +108,12 @@ class PrintJobCreateResponse(BaseModel):
 
 
 class PrintJobUploadResponse(BaseModel):
+    upload_id: str
     storage_key: str
     file_name: str
     file_size_bytes: int
     content_type: str
+    sha256: str
 
 
 class CustomerTimelineEvent(BaseModel):

@@ -16,6 +16,7 @@ def test_upload_pdf_success_and_download(monkeypatch) -> None:
     monkeypatch.setattr(settings, "payment_reconcile_enabled", False)
 
     uploaded_file_path: Path | None = None
+    uploaded_meta_path: Path | None = None
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/print-jobs/upload",
@@ -24,13 +25,16 @@ def test_upload_pdf_success_and_download(monkeypatch) -> None:
         assert response.status_code == 201
 
         payload = response.json()
+        assert payload["upload_id"]
         assert payload["file_name"] == "invoice.pdf"
         assert payload["content_type"] == "application/pdf"
         assert payload["file_size_bytes"] > 0
+        assert len(payload["sha256"]) == 64
         assert "/api/v1/test-assets/uploads/" in payload["storage_key"]
 
         upload_path = Path(urlparse(payload["storage_key"]).path)
         uploaded_file_path = _UPLOADS_DIR / upload_path.name
+        uploaded_meta_path = _UPLOADS_DIR / f"{payload['upload_id']}.json"
 
         fetch_response = client.get(upload_path.as_posix())
         assert fetch_response.status_code == 200
@@ -38,6 +42,8 @@ def test_upload_pdf_success_and_download(monkeypatch) -> None:
 
     if uploaded_file_path and uploaded_file_path.exists():
         uploaded_file_path.unlink()
+    if uploaded_meta_path and uploaded_meta_path.exists():
+        uploaded_meta_path.unlink()
 
 
 def test_upload_pdf_rejects_non_pdf_content_type(monkeypatch) -> None:

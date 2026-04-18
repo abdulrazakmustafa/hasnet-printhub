@@ -1,5 +1,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
+import hashlib
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
@@ -26,6 +28,7 @@ from app.services.pricing import compute_total_cost
 router = APIRouter()
 _UPLOADS_DIR = Path(__file__).resolve().parents[3] / "assets" / "uploads"
 _ALLOWED_UPLOAD_TYPES = {"application/pdf", "application/x-pdf"}
+_UPLOAD_META_SUFFIX = ".json"
 
 
 def _validate_upload_filename_or_422(file_name: str) -> str:
@@ -42,6 +45,36 @@ def _validate_upload_filename_or_422(file_name: str) -> str:
     if not normalized.lower().endswith(".pdf"):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Only .pdf files are allowed.")
     return normalized
+
+
+def _build_upload_storage_key(request: Request, upload_id: str) -> str:
+    api_prefix = settings.api_v1_prefix.rstrip("/")
+    base_url = str(request.base_url).rstrip("/")
+    return f"{base_url}{api_prefix}/test-assets/uploads/{upload_id}.pdf"
+
+
+def _load_upload_meta_or_422(upload_id: str) -> tuple[Path, dict]:
+    try:
+        parsed = uuid.UUID(upload_id.strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="upload_id must be a valid UUID.") from exc
+
+    normalized_upload_id = str(parsed)
+    file_path = _UPLOADS_DIR / f"{normalized_upload_id}.pdf"
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Referenced upload_id file was not found.")
+
+    meta_path = _UPLOADS_DIR / f"{normalized_upload_id}{_UPLOAD_META_SUFFIX}"
+    if not meta_path.exists() or not meta_path.is_file():
+        return file_path, {}
+
+    try:
+        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    return file_path, metadata
 
 
 @router.post("/upload", response_model=PrintJobUploadResponse, status_code=status.HTTP_201_CREATED)
@@ -71,24 +104,36 @@ async def upload_print_job_pdf(request: Request, file: UploadFile = File(...)) -
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded content is not a PDF.")
 
     _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    stored_name = f"{uuid.uuid4()}.pdf"
+    upload_id = str(uuid.uuid4())
+    stored_name = f"{upload_id}.pdf"
     stored_path = _UPLOADS_DIR / stored_name
     stored_path.write_bytes(payload)
+    sha256 = hashlib.sha256(bytes(payload)).hexdigest()
+    metadata = {
+        "upload_id": upload_id,
+        "file_name": file_name,
+        "file_size_bytes": len(payload),
+        "content_type": "application/pdf",
+        "sha256": sha256,
+        "stored_name": stored_name,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    (_UPLOADS_DIR / f"{upload_id}{_UPLOAD_META_SUFFIX}").write_text(json.dumps(metadata), encoding="utf-8")
 
-    api_prefix = settings.api_v1_prefix.rstrip("/")
-    base_url = str(request.base_url).rstrip("/")
-    storage_key = f"{base_url}{api_prefix}/test-assets/uploads/{stored_name}"
+    storage_key = _build_upload_storage_key(request, upload_id)
 
     return PrintJobUploadResponse(
+        upload_id=upload_id,
         storage_key=storage_key,
         file_name=file_name,
         file_size_bytes=len(payload),
         content_type="application/pdf",
+        sha256=sha256,
     )
 
 
 @router.post("", response_model=PrintJobCreateResponse)
-def create_quote(payload: PrintJobCreateRequest, db: Session = Depends(get_db)) -> PrintJobCreateResponse:
+def create_quote(payload: PrintJobCreateRequest, request: Request, db: Session = Depends(get_db)) -> PrintJobCreateResponse:
     total = compute_total_cost(
         pages=payload.pages,
         copies=payload.copies,
@@ -124,13 +169,33 @@ def create_quote(payload: PrintJobCreateRequest, db: Session = Depends(get_db)) 
 
     original_file_name = payload.original_file_name.strip() or "pending-upload.pdf"
     storage_key = (payload.storage_key or "").strip() or f"pending/{uuid.uuid4()}.pdf"
+    file_sha256 = "0" * 64
+    file_size_bytes = 1
+    normalized_upload_id = (payload.upload_id or "").strip()
+    if normalized_upload_id:
+        upload_file_path, upload_meta = _load_upload_meta_or_422(normalized_upload_id)
+        if not (payload.storage_key or "").strip():
+            storage_key = _build_upload_storage_key(request, normalized_upload_id)
+        if (payload.original_file_name or "").strip().lower() == "pending-upload.pdf":
+            upload_file_name = str(upload_meta.get("file_name") or "").strip()
+            if upload_file_name:
+                original_file_name = upload_file_name
+        try:
+            file_size_bytes = int(upload_meta.get("file_size_bytes") or upload_file_path.stat().st_size)
+        except (TypeError, ValueError):
+            file_size_bytes = int(upload_file_path.stat().st_size)
+        sha_value = str(upload_meta.get("sha256") or "").strip().lower()
+        if len(sha_value) == 64 and all(ch in "0123456789abcdef" for ch in sha_value):
+            file_sha256 = sha_value
+        else:
+            file_sha256 = hashlib.sha256(upload_file_path.read_bytes()).hexdigest()
 
     job = PrintJob(
         device_id=device.id,
         original_file_name=original_file_name,
         storage_key=storage_key,
-        file_sha256="0" * 64,
-        file_size_bytes=1,
+        file_sha256=file_sha256,
+        file_size_bytes=file_size_bytes,
         pages=payload.pages,
         color=color_mode,
         copies=payload.copies,
