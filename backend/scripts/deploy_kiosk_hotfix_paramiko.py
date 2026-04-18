@@ -56,6 +56,9 @@ def main() -> int:
         ("app/static/customer_app/index.html", "app/static/customer_app/index.html"),
         ("app/static/customer_app/app.js", "app/static/customer_app/app.js"),
         ("app/static/customer_app/styles.css", "app/static/customer_app/styles.css"),
+        ("app/static/admin_app/index.html", "app/static/admin_app/index.html"),
+        ("app/static/admin_app/app.js", "app/static/admin_app/app.js"),
+        ("app/static/admin_app/styles.css", "app/static/admin_app/styles.css"),
         ("app/schemas/print_job.py", "app/schemas/print_job.py"),
     ]
 

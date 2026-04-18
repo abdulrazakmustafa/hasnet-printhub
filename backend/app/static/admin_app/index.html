@@ -3,41 +3,309 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hasnet PrintHub Admin Pricing</title>
+  <title>Hasnet PrintHub Admin Console</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
+  <div class="site-strip">Hasnet PrintHub Admin Console</div>
   <main class="shell">
-    <header>
-      <p class="kicker">HASNET PRINTHUB ADMIN</p>
-      <h1>Pricing Control</h1>
-      <p class="hint">Update kiosk print price from here.</p>
+    <header class="brand-card">
+      <div class="brand-left">
+        <img class="brand-logo" src="/assets/logo-white-2.png" alt="Hasnet ICT Solution">
+        <div>
+          <p class="kicker">OPERATIONS DASHBOARD</p>
+          <h1>PrintHub Admin</h1>
+          <p class="hint">Live control for devices, payments, incidents, reports, and pricing.</p>
+        </div>
+      </div>
+      <div class="brand-actions">
+        <button id="refreshAllBtn" type="button">Refresh All</button>
+      </div>
     </header>
 
-    <section class="card">
-      <div class="grid">
-        <label for="bw">Black & White Price / Page</label>
-        <input id="bw" type="number" min="0" step="0.01">
+    <nav class="tabs" id="tabs">
+      <button data-view="overview" class="tab active" type="button">Overview</button>
+      <button data-view="devices" class="tab" type="button">Devices</button>
+      <button data-view="payments" class="tab" type="button">Payments</button>
+      <button data-view="incidents" class="tab" type="button">Incidents</button>
+      <button data-view="reports" class="tab" type="button">Reports</button>
+      <button data-view="pricing" class="tab" type="button">Pricing</button>
+    </nav>
 
-        <label for="color">Color Price / Page</label>
-        <input id="color" type="number" min="0" step="0.01">
+    <section class="view active" data-view-panel="overview">
+      <div class="kpi-grid">
+        <article class="kpi"><p>Confirmed Payments Today</p><strong id="kpiConfirmedPayments">-</strong></article>
+        <article class="kpi"><p>Confirmed Amount</p><strong id="kpiConfirmedAmount">-</strong></article>
+        <article class="kpi"><p>Printed Jobs Today</p><strong id="kpiPrintedJobs">-</strong></article>
+        <article class="kpi"><p>Active Devices</p><strong id="kpiActiveDevices">-</strong></article>
+        <article class="kpi"><p>Pending Incidents</p><strong id="kpiPendingIncidents">-</strong></article>
+        <article class="kpi"><p>Escalated Incidents</p><strong id="kpiEscalatedIncidents">-</strong></article>
+      </div>
 
-        <label for="currency">Currency</label>
-        <input id="currency" type="text" maxlength="3">
+      <div class="grid-two">
+        <article class="card">
+          <h2>Recent Payments</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Requested</th>
+                  <th>Method</th>
+                  <th>Status</th>
+                  <th>Amount</th>
+                  <th>Device</th>
+                </tr>
+              </thead>
+              <tbody id="overviewRecentPaymentsBody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Pending Incidents</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Provider Ref</th>
+                  <th>Method</th>
+                  <th>Pending (min)</th>
+                  <th>Escalated</th>
+                  <th>Device</th>
+                </tr>
+              </thead>
+              <tbody id="overviewIncidentsBody"></tbody>
+            </table>
+          </div>
+        </article>
       </div>
-      <div class="actions">
-        <button id="saveBtn" type="button">Save Pricing</button>
-        <button id="reloadBtn" class="ghost" type="button">Reload</button>
-      </div>
-      <p id="status" class="status"></p>
     </section>
 
-    <section class="card">
-      <h2>Current Effective Pricing</h2>
-      <p id="preview">-</p>
-      <p class="hint">Customer kiosk uses this pricing when creating quotes.</p>
+    <section class="view" data-view-panel="devices">
+      <article class="card">
+        <div class="card-header">
+          <h2>Devices</h2>
+          <label class="check">
+            <input id="devicesIncludeInactive" type="checkbox">
+            Include inactive
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Site</th>
+                <th>Status</th>
+                <th>Printer</th>
+                <th>Last Seen</th>
+                <th>Alerts</th>
+                <th>Jobs</th>
+              </tr>
+            </thead>
+            <tbody id="devicesBody"></tbody>
+          </table>
+        </div>
+      </article>
     </section>
+
+    <section class="view" data-view-panel="payments">
+      <article class="card">
+        <div class="card-header">
+          <h2>Payments</h2>
+          <button id="paymentsReloadBtn" type="button">Reload</button>
+        </div>
+        <form id="paymentsFilters" class="filters">
+          <label>Status
+            <select id="paymentsStatus">
+              <option value="">All</option>
+              <option value="initiated">initiated</option>
+              <option value="pending">pending</option>
+              <option value="confirmed">confirmed</option>
+              <option value="failed">failed</option>
+              <option value="expired">expired</option>
+              <option value="refunded">refunded</option>
+            </select>
+          </label>
+          <label>Method
+            <select id="paymentsMethod">
+              <option value="">All</option>
+              <option value="tigo">tigo</option>
+              <option value="mpesa">mpesa</option>
+              <option value="airtel">airtel</option>
+              <option value="snippe">snippe</option>
+            </select>
+          </label>
+          <label>Provider
+            <input id="paymentsProvider" type="text" placeholder="snippe">
+          </label>
+          <label>Device
+            <input id="paymentsDeviceCode" type="text" placeholder="pi-kiosk-001">
+          </label>
+          <label>Limit
+            <input id="paymentsLimit" type="number" min="1" max="200" value="50">
+          </label>
+          <button id="paymentsApplyBtn" type="submit">Apply Filters</button>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Requested</th>
+                <th>Provider Ref</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th>Amount</th>
+                <th>Job</th>
+                <th>Device</th>
+              </tr>
+            </thead>
+            <tbody id="paymentsBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section class="view" data-view-panel="incidents">
+      <article class="card">
+        <div class="card-header">
+          <h2>Pending Payment Incidents</h2>
+          <div class="inline-actions">
+            <button id="incidentsReloadBtn" type="button">Reload</button>
+            <button id="reconcileBtn" type="button">Run Reconcile</button>
+          </div>
+        </div>
+        <form id="incidentsFilters" class="filters">
+          <label>Escalated only
+            <select id="incidentsEscalatedOnly">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </label>
+          <label>Method
+            <select id="incidentsMethod">
+              <option value="">All</option>
+              <option value="tigo">tigo</option>
+              <option value="mpesa">mpesa</option>
+              <option value="airtel">airtel</option>
+              <option value="snippe">snippe</option>
+            </select>
+          </label>
+          <label>Device
+            <input id="incidentsDeviceCode" type="text" placeholder="pi-kiosk-001">
+          </label>
+          <label>Limit
+            <input id="incidentsLimit" type="number" min="1" max="200" value="50">
+          </label>
+          <button id="incidentsApplyBtn" type="submit">Apply Filters</button>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Provider Ref</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th>Pending (min)</th>
+                <th>Escalated</th>
+                <th>Recommended Action</th>
+              </tr>
+            </thead>
+            <tbody id="incidentsBody"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-header">
+          <h2>Alerts</h2>
+          <button id="alertsReloadBtn" type="button">Reload Alerts</button>
+        </div>
+        <form id="alertsFilters" class="filters">
+          <label>Status
+            <select id="alertsStatus">
+              <option value="">All</option>
+              <option value="active">active</option>
+              <option value="resolved">resolved</option>
+            </select>
+          </label>
+          <label>Severity
+            <select id="alertsSeverity">
+              <option value="">All</option>
+              <option value="info">info</option>
+              <option value="warning">warning</option>
+              <option value="critical">critical</option>
+            </select>
+          </label>
+          <label>Device
+            <input id="alertsDeviceCode" type="text" placeholder="pi-kiosk-001">
+          </label>
+          <label>Limit
+            <input id="alertsLimit" type="number" min="1" max="200" value="50">
+          </label>
+          <button id="alertsApplyBtn" type="submit">Apply Filters</button>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Last Seen</th>
+                <th>Title</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Device</th>
+              </tr>
+            </thead>
+            <tbody id="alertsBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section class="view" data-view-panel="reports">
+      <article class="card">
+        <div class="card-header">
+          <h2>Today Report</h2>
+          <button id="reportsReloadBtn" type="button">Reload Report</button>
+        </div>
+        <div class="kpi-grid small">
+          <article class="kpi"><p>Total Payments</p><strong id="reportPaymentsTotal">-</strong></article>
+          <article class="kpi"><p>Confirmed</p><strong id="reportPaymentsConfirmed">-</strong></article>
+          <article class="kpi"><p>Pending</p><strong id="reportPaymentsPending">-</strong></article>
+          <article class="kpi"><p>Failed</p><strong id="reportPaymentsFailed">-</strong></article>
+          <article class="kpi"><p>Printed Jobs</p><strong id="reportJobsPrinted">-</strong></article>
+          <article class="kpi"><p>In Progress Jobs</p><strong id="reportJobsProgress">-</strong></article>
+          <article class="kpi"><p>Active Devices</p><strong id="reportDevicesActive">-</strong></article>
+          <article class="kpi"><p>Online Devices</p><strong id="reportDevicesOnline">-</strong></article>
+        </div>
+      </article>
+    </section>
+
+    <section class="view" data-view-panel="pricing">
+      <article class="card">
+        <div class="card-header">
+          <h2>Pricing Controls</h2>
+          <button id="pricingReloadBtn" type="button">Reload</button>
+        </div>
+        <form id="pricingForm" class="filters pricing">
+          <label>Black & White Price / Page
+            <input id="pricingBw" type="number" min="0" step="0.01">
+          </label>
+          <label>Color Price / Page
+            <input id="pricingColor" type="number" min="0" step="0.01">
+          </label>
+          <label>Currency
+            <input id="pricingCurrency" type="text" maxlength="3">
+          </label>
+          <button id="pricingSaveBtn" type="submit">Save Pricing</button>
+        </form>
+        <p id="pricingPreview" class="preview">-</p>
+      </article>
+    </section>
+
+    <p id="status" class="status"></p>
   </main>
+
   <script src="./app.js"></script>
 </body>
 </html>
