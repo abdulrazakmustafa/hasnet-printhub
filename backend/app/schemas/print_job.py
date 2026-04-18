@@ -92,6 +92,13 @@ class PrintJobCreateResponse(BaseModel):
     currency: str
 
 
+class PrintJobUploadResponse(BaseModel):
+    storage_key: str
+    file_name: str
+    file_size_bytes: int
+    content_type: str
+
+
 class CustomerTimelineEvent(BaseModel):
     code: str
     label: str

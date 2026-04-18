@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -18,10 +19,72 @@ from app.schemas.print_job import (
     PrintJobCreateResponse,
     PrintJobCustomerReceiptResponse,
     PrintJobCustomerStatusResponse,
+    PrintJobUploadResponse,
 )
 from app.services.pricing import compute_total_cost
 
 router = APIRouter()
+_UPLOADS_DIR = Path(__file__).resolve().parents[3] / "assets" / "uploads"
+_ALLOWED_UPLOAD_TYPES = {"application/pdf", "application/x-pdf"}
+
+
+def _validate_upload_filename_or_422(file_name: str) -> str:
+    normalized = (file_name or "").strip()
+    if not normalized:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file name is required.")
+    if "/" in normalized or "\\" in normalized or ".." in normalized:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid uploaded file name.")
+    if len(normalized) > 255:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Uploaded file name must be 255 characters or fewer.",
+        )
+    if not normalized.lower().endswith(".pdf"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Only .pdf files are allowed.")
+    return normalized
+
+
+@router.post("/upload", response_model=PrintJobUploadResponse, status_code=status.HTTP_201_CREATED)
+async def upload_print_job_pdf(request: Request, file: UploadFile = File(...)) -> PrintJobUploadResponse:
+    file_name = _validate_upload_filename_or_422(file.filename or "")
+    content_type = (file.content_type or "").lower().strip()
+    if content_type and content_type not in _ALLOWED_UPLOAD_TYPES:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Only PDF uploads are supported.")
+
+    max_bytes = max(1, settings.upload_max_mb) * 1024 * 1024
+    payload = bytearray()
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        payload.extend(chunk)
+        if len(payload) > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Uploaded file exceeds {settings.upload_max_mb} MB limit.",
+            )
+    await file.close()
+
+    if not payload:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is empty.")
+    if not bytes(payload).startswith(b"%PDF-"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded content is not a PDF.")
+
+    _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    stored_name = f"{uuid.uuid4()}.pdf"
+    stored_path = _UPLOADS_DIR / stored_name
+    stored_path.write_bytes(payload)
+
+    api_prefix = settings.api_v1_prefix.rstrip("/")
+    base_url = str(request.base_url).rstrip("/")
+    storage_key = f"{base_url}{api_prefix}/test-assets/uploads/{stored_name}"
+
+    return PrintJobUploadResponse(
+        storage_key=storage_key,
+        file_name=file_name,
+        file_size_bytes=len(payload),
+        content_type="application/pdf",
+    )
 
 
 @router.post("", response_model=PrintJobCreateResponse)
