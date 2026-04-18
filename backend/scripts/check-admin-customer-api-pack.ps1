@@ -20,6 +20,7 @@ $devicesUrl = "$ApiBaseUrl/admin/devices?include_inactive=false"
 $alertsUrl = "$ApiBaseUrl/alerts?limit=$Limit"
 $paymentsUrl = "$ApiBaseUrl/admin/payments?limit=$Limit"
 $pendingIncidentsUrl = "$ApiBaseUrl/admin/payments/pending-incidents?limit=$Limit"
+$pricingUrl = "$ApiBaseUrl/admin/pricing"
 $dashboardSnapshotUrl = "$ApiBaseUrl/admin/dashboard/snapshot?recent_payments_limit=$Limit&pending_incidents_limit=$Limit"
 $reportUrl = "$ApiBaseUrl/admin/reports/today"
 
@@ -43,6 +44,13 @@ Write-Host ("GET {0}" -f $pendingIncidentsUrl) -ForegroundColor DarkCyan
 $pendingIncidents = Invoke-RestMethod -Method GET -Uri $pendingIncidentsUrl
 Write-Host ("- pending_incidents_count: {0}" -f (@($pendingIncidents.items).Count))
 Write-Host ("- escalated_incidents_count: {0}" -f $pendingIncidents.escalated_count)
+
+Write-Host ""
+Write-Host ("GET {0}" -f $pricingUrl) -ForegroundColor DarkCyan
+$pricing = Invoke-RestMethod -Method GET -Uri $pricingUrl
+Write-Host ("- bw_price_per_page: {0}" -f $pricing.bw_price_per_page)
+Write-Host ("- color_price_per_page: {0}" -f $pricing.color_price_per_page)
+Write-Host ("- pricing_currency: {0}" -f $pricing.currency)
 
 Write-Host ""
 Write-Host ("GET {0}" -f $dashboardSnapshotUrl) -ForegroundColor DarkCyan
@@ -94,6 +102,7 @@ Write-Host ("- /admin/devices: OK ({0} items)" -f (@($devices.items).Count))
 Write-Host ("- /alerts: OK ({0} items)" -f (@($alerts.items).Count))
 Write-Host ("- /admin/payments: OK ({0} items)" -f (@($payments.items).Count))
 Write-Host ("- /admin/payments/pending-incidents: OK ({0} items)" -f (@($pendingIncidents.items).Count))
+Write-Host "- /admin/pricing: OK"
 Write-Host "- /admin/dashboard/snapshot: OK"
 Write-Host "- /admin/reports/today: OK"
 if (-not [string]::IsNullOrWhiteSpace($JobId)) {

@@ -61,6 +61,7 @@ def _write_upload(upload_id: str, file_name: str, content: bytes) -> tuple[Path,
                 "file_name": file_name,
                 "file_size_bytes": len(content),
                 "sha256": sha,
+                "page_count": 2,
             }
         ),
         encoding="utf-8",
@@ -68,15 +69,30 @@ def _write_upload(upload_id: str, file_name: str, content: bytes) -> tuple[Path,
     return pdf_path, meta_path
 
 
+def _pdf_bytes(page_count: int) -> bytes:
+    pages = max(1, page_count)
+    page_refs = " ".join([f"{i + 3} 0 R" for i in range(pages)])
+    page_objects = []
+    for idx in range(pages):
+        page_objects.append(f"{idx + 3} 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n")
+    return (
+        "%PDF-1.4\n"
+        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        f"2 0 obj\n<< /Type /Pages /Count {pages} /Kids [{page_refs}] >>\nendobj\n"
+        f"{''.join(page_objects)}"
+        "%%EOF\n"
+    ).encode("utf-8")
+
+
 def test_create_quote_uses_upload_id_metadata() -> None:
     upload_id = str(uuid.uuid4())
-    content = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n"
+    content = _pdf_bytes(page_count=2)
     pdf_path, meta_path = _write_upload(upload_id, "customer-doc.pdf", content)
     expected_sha = hashlib.sha256(content).hexdigest()
 
     try:
         payload = PrintJobCreateRequest(
-            pages=2,
+            pages=99,
             copies=1,
             color="bw",
             upload_id=upload_id,
@@ -93,6 +109,7 @@ def test_create_quote_uses_upload_id_metadata() -> None:
         assert created_job.storage_key.endswith(f"/api/v1/test-assets/uploads/{upload_id}.pdf")
         assert created_job.file_size_bytes == len(content)
         assert created_job.file_sha256 == expected_sha
+        assert created_job.pages == 2
         assert response.total_cost == 200.0
     finally:
         if pdf_path.exists():

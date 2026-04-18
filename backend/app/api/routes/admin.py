@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
@@ -12,9 +13,22 @@ from app.models.device import Device
 from app.models.enums import AlertStatus, DeviceStatus, JobStatus, PaymentMethod, PaymentStatus
 from app.models.payment import Payment
 from app.models.print_job import PrintJob
+from app.services.pricing_config import get_pricing_config, save_pricing_config
 from app.services.payment_gateway import sync_pending_payments
 
 router = APIRouter()
+
+
+class AdminPricingConfigResponse(BaseModel):
+    bw_price_per_page: float
+    color_price_per_page: float
+    currency: str
+
+
+class AdminPricingConfigUpdateRequest(BaseModel):
+    bw_price_per_page: float = Field(..., ge=0)
+    color_price_per_page: float = Field(..., ge=0)
+    currency: str = Field(..., min_length=3, max_length=3)
 
 
 def _parse_payment_status_filter(value: str | None) -> PaymentStatus | None:
@@ -295,6 +309,7 @@ def admin_dashboard_snapshot(
         device_code=None,
         db=db,
     )
+    pricing = get_pricing_config()
 
     return {
         "generated_at_utc": generated_at_utc,
@@ -310,12 +325,36 @@ def admin_dashboard_snapshot(
             "escalated_pending_incidents": pending_incidents["escalated_count"],
         },
         "report_today": report,
+        "pricing": pricing,
         "pending_incidents": pending_incidents,
         "recent_payments": {
             "count": recent_payments["count"],
             "items": recent_payments["items"],
         },
     }
+
+
+@router.get("/pricing", response_model=AdminPricingConfigResponse)
+def admin_get_pricing_config() -> AdminPricingConfigResponse:
+    payload = get_pricing_config()
+    return AdminPricingConfigResponse(**payload)
+
+
+@router.put("/pricing", response_model=AdminPricingConfigResponse)
+def admin_update_pricing_config(payload: AdminPricingConfigUpdateRequest) -> AdminPricingConfigResponse:
+    currency = payload.currency.strip().upper()
+    if len(currency) != 3 or not currency.isalpha():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="currency must be a 3-letter ISO code, for example TZS.",
+        )
+
+    saved = save_pricing_config(
+        bw_price_per_page=payload.bw_price_per_page,
+        color_price_per_page=payload.color_price_per_page,
+        currency=currency,
+    )
+    return AdminPricingConfigResponse(**saved)
 
 
 @router.get("/reports/today")

@@ -1,311 +1,387 @@
 (function () {
+  const API_BASE = `${window.location.origin}/api/v1`;
+  const DEFAULT_DEVICE_CODE = "pi-kiosk-001";
+  const POLL_INTERVAL_MS = 5000;
+
   const state = {
+    step: 1,
     upload: null,
     quote: null,
     payment: null,
     status: null,
     receipt: null,
+    pricing: {
+      bw_price_per_page: 500,
+      color_price_per_page: 500,
+      currency: "TZS",
+    },
+    mode: "bw",
     pollTimer: null,
   };
 
   const $ = (id) => document.getElementById(id);
-
-  const els = {
-    apiBaseUrl: $("apiBaseUrl"),
+  const ui = {
+    stepper: $("stepper"),
+    panels: document.querySelectorAll("[data-step-panel]"),
     pdfFile: $("pdfFile"),
-    pages: $("pages"),
-    copies: $("copies"),
-    color: $("color"),
-    currency: $("currency"),
-    bwPrice: $("bwPrice"),
-    colorPrice: $("colorPrice"),
-    deviceCode: $("deviceCode"),
-    method: $("method"),
-    msisdn: $("msisdn"),
-    firstName: $("firstName"),
-    lastName: $("lastName"),
-    email: $("email"),
     uploadBtn: $("uploadBtn"),
-    quoteBtn: $("quoteBtn"),
+    uploadFeedback: $("uploadFeedback"),
+    infoFileName: $("infoFileName"),
+    infoPageCount: $("infoPageCount"),
+    copies: $("copies"),
+    modeSelector: $("modeSelector"),
+    toStep3Btn: $("toStep3Btn"),
+    sumPages: $("sumPages"),
+    sumCopies: $("sumCopies"),
+    sumMode: $("sumMode"),
+    sumUnitPrice: $("sumUnitPrice"),
+    sumTotal: $("sumTotal"),
+    backToStep2Btn: $("backToStep2Btn"),
+    toStep4Btn: $("toStep4Btn"),
+    fullName: $("fullName"),
+    msisdn: $("msisdn"),
+    method: $("method"),
+    backToStep3Btn: $("backToStep3Btn"),
     payBtn: $("payBtn"),
-    retrySafeBtn: $("retrySafeBtn"),
-    statusBtn: $("statusBtn"),
-    pollBtn: $("pollBtn"),
-    receiptBtn: $("receiptBtn"),
-    uploadSummary: $("uploadSummary"),
-    quoteSummary: $("quoteSummary"),
-    paymentSummary: $("paymentSummary"),
-    statusSummary: $("statusSummary"),
-    receiptSummary: $("receiptSummary"),
-    timelineList: $("timelineList"),
-    logPanel: $("logPanel"),
+    paymentFeedback: $("paymentFeedback"),
+    finishTitle: $("finishTitle"),
+    finishMessage: $("finishMessage"),
+    finishStatus: $("finishStatus"),
+    finishJobId: $("finishJobId"),
+    finishRef: $("finishRef"),
+    newPrintBtn: $("newPrintBtn"),
   };
 
-  function nowIso() {
-    return new Date().toISOString().replace("T", " ").replace("Z", "");
+  function setFeedback(el, tone, message) {
+    el.className = `feedback ${tone}`;
+    el.textContent = message || "";
   }
 
-  function log(message, payload) {
-    const line = `[${nowIso()}] ${message}`;
-    const extra = payload ? `\n${JSON.stringify(payload, null, 2)}\n` : "\n";
-    els.logPanel.textContent = line + extra + els.logPanel.textContent;
-  }
-
-  function setSummary(el, tone, lines) {
-    el.className = `summary ${tone}`;
-    el.innerHTML = lines.map((line) => `<div>${line}</div>`).join("");
-  }
-
-  function parseApiError(response, body) {
-    if (!body) {
-      return `HTTP ${response.status}`;
+  function setStep(step) {
+    state.step = step;
+    for (const panel of ui.panels) {
+      panel.classList.toggle("active", Number(panel.dataset.stepPanel) === step);
     }
-    if (typeof body.detail === "string") {
-      return body.detail;
+    for (const item of ui.stepper.querySelectorAll("li")) {
+      item.classList.toggle("active", Number(item.dataset.step) === step);
     }
-    if (Array.isArray(body.detail)) {
-      return body.detail.map((item) => item.msg || JSON.stringify(item)).join("; ");
-    }
-    return `HTTP ${response.status}`;
   }
 
-  async function callApi(path, options) {
-    const base = (els.apiBaseUrl.value || "").trim().replace(/\/+$/, "");
-    const url = `${base}${path}`;
-    const response = await fetch(url, options);
-    let body = null;
+  function money(value) {
+    const currency = state.pricing.currency || "TZS";
+    return `${Number(value).toFixed(0)} ${currency}`;
+  }
+
+  function unitPriceForMode(mode) {
+    return mode === "color"
+      ? Number(state.pricing.color_price_per_page || 0)
+      : Number(state.pricing.bw_price_per_page || 0);
+  }
+
+  function totalCost() {
+    if (!state.upload) return 0;
+    const copies = Number(ui.copies.value || 1);
+    const pages = Number(state.upload.page_count || 0);
+    return pages * copies * unitPriceForMode(state.mode);
+  }
+
+  function renderStep2() {
+    ui.infoFileName.textContent = state.upload.file_name;
+    ui.infoPageCount.textContent = String(state.upload.page_count);
+    ui.copies.value = "1";
+    state.mode = "bw";
+    for (const btn of ui.modeSelector.querySelectorAll("button")) {
+      btn.classList.toggle("active", btn.dataset.mode === "bw");
+    }
+  }
+
+  function renderSummary() {
+    const pages = Number(state.upload.page_count || 0);
+    const copies = Number(ui.copies.value || 1);
+    const modeLabel = state.mode === "color" ? "Color" : "Black & White";
+    const unitPrice = unitPriceForMode(state.mode);
+    ui.sumPages.textContent = String(pages);
+    ui.sumCopies.textContent = String(copies);
+    ui.sumMode.textContent = modeLabel;
+    ui.sumUnitPrice.textContent = money(unitPrice);
+    ui.sumTotal.textContent = money(totalCost());
+  }
+
+  function parseError(payload, statusCode) {
+    if (payload && typeof payload.detail === "string") return payload.detail;
+    if (payload && Array.isArray(payload.detail)) {
+      return payload.detail.map((x) => x.msg || "Validation error").join("; ");
+    }
+    return `Request failed (HTTP ${statusCode})`;
+  }
+
+  async function callJson(path, options) {
+    const response = await fetch(`${API_BASE}${path}`, options);
+    let payload = null;
     try {
-      body = await response.json();
+      payload = await response.json();
     } catch (_err) {
-      body = null;
+      payload = null;
     }
     if (!response.ok) {
-      throw new Error(parseApiError(response, body));
+      throw new Error(parseError(payload, response.status));
     }
-    return body;
+    return payload;
   }
 
-  function quotePayload() {
-    if (!state.upload) {
-      throw new Error("Upload a PDF first.");
+  async function loadPricing() {
+    try {
+      const payload = await callJson("/admin/pricing", { method: "GET" });
+      state.pricing = {
+        bw_price_per_page: Number(payload.bw_price_per_page || 500),
+        color_price_per_page: Number(payload.color_price_per_page || 500),
+        currency: String(payload.currency || "TZS").toUpperCase(),
+      };
+    } catch (_err) {
+      state.pricing = {
+        bw_price_per_page: 500,
+        color_price_per_page: 500,
+        currency: "TZS",
+      };
     }
-    const file = els.pdfFile.files[0];
-    return {
-      pages: Number(els.pages.value),
-      copies: Number(els.copies.value),
-      color: els.color.value,
-      device_code: els.deviceCode.value.trim(),
-      original_file_name: file ? file.name : "document.pdf",
-      upload_id: state.upload.upload_id,
-      bw_price_per_page: Number(els.bwPrice.value),
-      color_price_per_page: Number(els.colorPrice.value),
-      currency: els.currency.value.trim().toUpperCase(),
-    };
   }
 
-  function paymentPayload() {
-    if (!state.quote) {
-      throw new Error("Create quote first.");
-    }
-    return {
-      print_job_id: state.quote.job_id,
-      amount: Number(state.quote.total_cost),
-      method: els.method.value,
-      msisdn: els.msisdn.value.trim(),
-      customer_first_name: els.firstName.value.trim(),
-      customer_last_name: els.lastName.value.trim(),
-      customer_email: els.email.value.trim(),
-    };
-  }
-
-  async function uploadPdf() {
-    const file = els.pdfFile.files[0];
+  async function uploadDocument() {
+    const file = ui.pdfFile.files[0];
     if (!file) {
-      throw new Error("Choose a PDF file first.");
+      throw new Error("Please select a PDF file first.");
     }
+    setFeedback(ui.uploadFeedback, "warn", "Uploading document...");
+
     const form = new FormData();
     form.append("file", file, file.name);
-    const upload = await callApi("/print-jobs/upload", {
+    const payload = await callJson("/print-jobs/upload", {
       method: "POST",
       body: form,
     });
-    state.upload = upload;
-    setSummary(els.uploadSummary, "ok", [
-      `<strong>upload_id:</strong> ${upload.upload_id}`,
-      `<strong>file:</strong> ${upload.file_name}`,
-      `<strong>size:</strong> ${upload.file_size_bytes} bytes`,
-      `<strong>sha256:</strong> ${upload.sha256}`,
-    ]);
-    log("Upload successful.", upload);
+
+    state.upload = payload;
+    renderStep2();
+    setFeedback(ui.uploadFeedback, "ok", "Upload successful.");
+    setStep(2);
   }
 
   async function createQuote() {
-    const payload = quotePayload();
-    const quote = await callApi("/print-jobs", {
+    const pages = Number(state.upload.page_count || 0);
+    const copies = Number(ui.copies.value || 1);
+    const unitBw = Number(state.pricing.bw_price_per_page || 0);
+    const unitColor = Number(state.pricing.color_price_per_page || 0);
+
+    const payload = {
+      pages,
+      copies,
+      color: state.mode,
+      device_code: DEFAULT_DEVICE_CODE,
+      original_file_name: state.upload.file_name,
+      upload_id: state.upload.upload_id,
+      bw_price_per_page: unitBw,
+      color_price_per_page: unitColor,
+      currency: state.pricing.currency,
+    };
+
+    return await callJson("/print-jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    state.quote = quote;
-    setSummary(els.quoteSummary, "ok", [
-      `<strong>job_id:</strong> ${quote.job_id}`,
-      `<strong>status:</strong> ${quote.status}`,
-      `<strong>total:</strong> ${quote.total_cost} ${quote.currency}`,
-    ]);
-    log("Quote created.", { request: payload, response: quote });
   }
 
-  async function createPayment(useRetrySafe) {
-    const payload = paymentPayload();
-    const path = useRetrySafe
-      ? "/payments/retry-safe?reconcile_limit=25"
-      : "/payments/create";
-    const response = await callApi(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const payment = useRetrySafe ? response.payment : response;
-    state.payment = payment;
-
-    const detailLine = useRetrySafe
-      ? `<strong>decision:</strong> ${response.decision} (reconcile_synced=${response.reconcile_synced})`
-      : "<strong>decision:</strong> standard payment create";
-
-    setSummary(els.paymentSummary, "ok", [
-      detailLine,
-      `<strong>payment_id:</strong> ${payment.payment_id}`,
-      `<strong>status:</strong> ${payment.status}`,
-      `<strong>provider_ref:</strong> ${payment.provider_request_id}`,
-    ]);
-    log("Payment create successful.", { request: payload, response });
-  }
-
-  function renderTimeline(events) {
-    els.timelineList.innerHTML = "";
-    for (const event of events || []) {
-      const li = document.createElement("li");
-      li.classList.add(`state-${event.state}`);
-      const atText = event.at ? ` at ${event.at}` : "";
-      li.innerHTML = `<strong>${event.label}</strong> - ${event.state}${atText}<br>${event.detail || ""}`;
-      els.timelineList.appendChild(li);
+  function splitName(fullName) {
+    const cleaned = String(fullName || "").trim().replace(/\s+/g, " ");
+    if (!cleaned) {
+      return { first: "", last: "" };
     }
+    const parts = cleaned.split(" ");
+    if (parts.length === 1) {
+      return { first: parts[0], last: "Customer" };
+    }
+    return { first: parts[0], last: parts.slice(1).join(" ") };
   }
 
-  function pickStatusTone(stage) {
-    if (stage === "failed") return "bad";
-    if (stage === "provider_delay_escalated" || stage === "payment_pending") return "warn";
-    return "ok";
+  async function createPayment() {
+    if (!state.upload) throw new Error("Upload document first.");
+    const fullName = ui.fullName.value.trim();
+    const msisdn = ui.msisdn.value.trim();
+    if (!fullName) throw new Error("Please enter full name.");
+    if (!msisdn) throw new Error("Please enter mobile number.");
+
+    setFeedback(ui.paymentFeedback, "warn", "Preparing your print order...");
+    state.quote = await createQuote();
+
+    const names = splitName(fullName);
+    const paymentPayload = {
+      print_job_id: state.quote.job_id,
+      amount: Number(state.quote.total_cost),
+      method: ui.method.value,
+      msisdn,
+      customer_first_name: names.first,
+      customer_last_name: names.last,
+      customer_email: "customer@hasnet.local",
+    };
+
+    setFeedback(ui.paymentFeedback, "warn", "Sending payment request...");
+    const retrySafePayload = await callJson("/payments/retry-safe?reconcile_limit=25", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(paymentPayload),
+    });
+
+    state.payment = retrySafePayload.payment;
+    setFeedback(ui.paymentFeedback, "ok", "Payment request sent. Please confirm on your phone.");
+    showProcessingScreen();
+    startStatusPolling();
+  }
+
+  function showProcessingScreen() {
+    setStep(5);
+    ui.finishTitle.textContent = "Payment Initiated";
+    ui.finishMessage.textContent = "Please confirm payment on your phone. Printing will start automatically after confirmation.";
+    ui.finishStatus.textContent = "Waiting for payment confirmation";
+    ui.finishJobId.textContent = state.quote ? state.quote.job_id : "-";
+    ui.finishRef.textContent = state.payment ? state.payment.provider_request_id : "-";
   }
 
   async function fetchStatus() {
-    if (!state.quote) {
-      throw new Error("Create quote first.");
-    }
-    const statusPayload = await callApi(`/print-jobs/${state.quote.job_id}/customer-status`, {
-      method: "GET",
-    });
-    state.status = statusPayload;
+    if (!state.quote) return;
+    const payload = await callJson(`/print-jobs/${state.quote.job_id}/customer-status`, { method: "GET" });
+    state.status = payload;
+    ui.finishStatus.textContent = `${payload.stage} / ${payload.payment_status}`;
+    ui.finishRef.textContent = payload.provider_request_id || state.payment.provider_request_id || "-";
 
-    setSummary(els.statusSummary, pickStatusTone(statusPayload.stage), [
-      `<strong>stage:</strong> ${statusPayload.stage}`,
-      `<strong>message:</strong> ${statusPayload.message}`,
-      `<strong>next action:</strong> ${statusPayload.next_action}`,
-      `<strong>job status:</strong> ${statusPayload.job_status}`,
-      `<strong>payment status:</strong> ${statusPayload.payment_status}`,
-    ]);
-    renderTimeline(statusPayload.timeline || []);
-    log("Customer status fetched.", statusPayload);
-  }
-
-  async function fetchReceipt() {
-    if (!state.quote) {
-      throw new Error("Create quote first.");
-    }
-    const receipt = await callApi(`/print-jobs/${state.quote.job_id}/customer-receipt`, {
-      method: "GET",
-    });
-    state.receipt = receipt;
-
-    const headline = receipt.headline || "Receipt";
-    setSummary(els.receiptSummary, "ok", [
-      `<strong>headline:</strong> ${headline}`,
-      `<strong>stage:</strong> ${receipt.stage}`,
-      `<strong>payment status:</strong> ${receipt.payment_status}`,
-      `<strong>issued at:</strong> ${receipt.issued_at}`,
-    ]);
-    log("Customer receipt fetched.", receipt);
-  }
-
-  function startStopPolling() {
-    if (state.pollTimer) {
-      clearInterval(state.pollTimer);
-      state.pollTimer = null;
-      els.pollBtn.textContent = "Start Auto Poll";
-      log("Auto-poll stopped.");
+    if (payload.stage === "completed") {
+      stopStatusPolling();
+      await finalizeSuccess();
       return;
     }
 
-    if (!state.quote) {
-      setSummary(els.statusSummary, "warn", ["Create quote first, then start polling."]);
+    if (payload.stage === "payment_failed") {
+      stopStatusPolling();
+      ui.finishTitle.textContent = "Payment Not Successful";
+      ui.finishMessage.textContent = "Your payment was not successful. Please return and try again.";
       return;
     }
 
-    state.pollTimer = setInterval(async () => {
-      try {
-        await fetchStatus();
-      } catch (err) {
-        log(`Auto-poll error: ${err.message}`);
-      }
-    }, 5000);
-    els.pollBtn.textContent = "Stop Auto Poll";
-    log("Auto-poll started (5s).");
+    if (payload.stage === "provider_delay_escalated") {
+      ui.finishTitle.textContent = "Payment Delay";
+      ui.finishMessage.textContent = "Payment confirmation is delayed. Our team is verifying your transaction.";
+      return;
+    }
+
+    if (payload.stage === "processing" || payload.stage === "payment_confirmed") {
+      ui.finishTitle.textContent = "Printing In Progress";
+      ui.finishMessage.textContent = "Payment confirmed. Please wait while your document is printing.";
+      return;
+    }
+
+    ui.finishTitle.textContent = "Waiting for Confirmation";
+    ui.finishMessage.textContent = payload.message || "Please wait while payment is being confirmed.";
   }
 
-  async function runAction(action, onErrorSummary) {
+  async function finalizeSuccess() {
     try {
-      await action();
-    } catch (err) {
-      const message = err && err.message ? err.message : "Unexpected error";
-      onErrorSummary(message);
-      log(`Error: ${message}`);
+      state.receipt = await callJson(`/print-jobs/${state.quote.job_id}/customer-receipt`, { method: "GET" });
+    } catch (_err) {
+      state.receipt = null;
+    }
+    ui.finishTitle.textContent = "Printing Successful";
+    ui.finishMessage.textContent = "Asante! Your document has been printed successfully. Karibu tena.";
+    ui.finishStatus.textContent = "Completed";
+    if (state.receipt && state.receipt.transaction_reference) {
+      ui.finishRef.textContent = state.receipt.transaction_reference;
     }
   }
 
-  function initDefaults() {
-    els.apiBaseUrl.value = `${window.location.origin}/api/v1`;
-    els.logPanel.textContent = "";
+  function startStatusPolling() {
+    stopStatusPolling();
+    fetchStatus().catch(() => {});
+    state.pollTimer = window.setInterval(() => {
+      fetchStatus().catch(() => {});
+    }, POLL_INTERVAL_MS);
+  }
+
+  function stopStatusPolling() {
+    if (state.pollTimer) {
+      window.clearInterval(state.pollTimer);
+      state.pollTimer = null;
+    }
+  }
+
+  function resetFlow() {
+    stopStatusPolling();
+    state.upload = null;
+    state.quote = null;
+    state.payment = null;
+    state.status = null;
+    state.receipt = null;
+    state.mode = "bw";
+    ui.pdfFile.value = "";
+    ui.fullName.value = "";
+    ui.msisdn.value = "";
+    ui.method.value = "mpesa";
+    ui.copies.value = "1";
+    setFeedback(ui.uploadFeedback, "", "");
+    setFeedback(ui.paymentFeedback, "", "");
+    setStep(1);
+  }
+
+  function bindModeButtons() {
+    for (const btn of ui.modeSelector.querySelectorAll("button")) {
+      btn.addEventListener("click", () => {
+        state.mode = btn.dataset.mode;
+        for (const peer of ui.modeSelector.querySelectorAll("button")) {
+          peer.classList.toggle("active", peer.dataset.mode === state.mode);
+        }
+      });
+    }
   }
 
   function bindEvents() {
-    els.uploadBtn.addEventListener("click", () =>
-      runAction(uploadPdf, (message) => setSummary(els.uploadSummary, "bad", [message]))
-    );
+    ui.uploadBtn.addEventListener("click", async () => {
+      try {
+        await uploadDocument();
+      } catch (err) {
+        setFeedback(ui.uploadFeedback, "bad", err.message || "Upload failed.");
+      }
+    });
 
-    els.quoteBtn.addEventListener("click", () =>
-      runAction(createQuote, (message) => setSummary(els.quoteSummary, "bad", [message]))
-    );
+    ui.toStep3Btn.addEventListener("click", () => {
+      const copies = Number(ui.copies.value || 0);
+      if (copies < 1) {
+        setFeedback(ui.uploadFeedback, "bad", "Copies must be at least 1.");
+        return;
+      }
+      renderSummary();
+      setStep(3);
+    });
 
-    els.payBtn.addEventListener("click", () =>
-      runAction(() => createPayment(false), (message) => setSummary(els.paymentSummary, "bad", [message]))
-    );
+    ui.backToStep2Btn.addEventListener("click", () => setStep(2));
+    ui.toStep4Btn.addEventListener("click", () => setStep(4));
+    ui.backToStep3Btn.addEventListener("click", () => setStep(3));
 
-    els.retrySafeBtn.addEventListener("click", () =>
-      runAction(() => createPayment(true), (message) => setSummary(els.paymentSummary, "bad", [message]))
-    );
+    ui.payBtn.addEventListener("click", async () => {
+      try {
+        await createPayment();
+      } catch (err) {
+        setFeedback(ui.paymentFeedback, "bad", err.message || "Payment request failed.");
+      }
+    });
 
-    els.statusBtn.addEventListener("click", () =>
-      runAction(fetchStatus, (message) => setSummary(els.statusSummary, "bad", [message]))
-    );
-
-    els.receiptBtn.addEventListener("click", () =>
-      runAction(fetchReceipt, (message) => setSummary(els.receiptSummary, "bad", [message]))
-    );
-
-    els.pollBtn.addEventListener("click", startStopPolling);
+    ui.newPrintBtn.addEventListener("click", resetFlow);
   }
 
-  initDefaults();
-  bindEvents();
-  log("Customer app ready.");
+  async function init() {
+    await loadPricing();
+    bindModeButtons();
+    bindEvents();
+    setStep(1);
+  }
+
+  init().catch(() => {
+    setFeedback(ui.uploadFeedback, "warn", "System initialized with default pricing.");
+  });
 })();

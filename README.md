@@ -50,3 +50,6 @@ Frontend integration kickoff checklist:
 
 Customer flow starter UI (served by backend):
 - `http://<api-host>:8000/customer-app`
+
+Admin pricing UI (served by backend):
+- `http://<api-host>:8000/admin-app`

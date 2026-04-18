@@ -8,7 +8,9 @@ Frontend can start now. Backend contracts needed for customer and admin surfaces
 
 1. A working customer flow web UI is now served by backend at:
    - `GET /customer-app`
-2. This starter UI already implements:
+2. A simple admin pricing UI is now served by backend at:
+   - `GET /admin-app`
+3. This starter UI already implements:
    - upload -> quote -> pay -> status -> receipt
    - retry-safe payment action button
 

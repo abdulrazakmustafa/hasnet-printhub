@@ -8,8 +8,20 @@ from app.core.config import settings
 from app.main import app
 
 
-def _pdf_bytes(size_padding: int = 0) -> bytes:
-    return b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n" + (b"A" * max(0, size_padding))
+def _pdf_bytes(size_padding: int = 0, pages: int = 1) -> bytes:
+    page_objects = []
+    for idx in range(max(1, pages)):
+        page_objects.append(
+            f"{idx + 3} 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        )
+    payload = (
+        "%PDF-1.4\n"
+        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        f"2 0 obj\n<< /Type /Pages /Count {max(1, pages)} /Kids [{' '.join([f'{i + 3} 0 R' for i in range(max(1, pages))])}] >>\nendobj\n"
+        f"{''.join(page_objects)}"
+        "%%EOF\n"
+    ).encode("utf-8")
+    return payload + (b"A" * max(0, size_padding))
 
 
 def test_upload_pdf_success_and_download(monkeypatch) -> None:
@@ -30,6 +42,7 @@ def test_upload_pdf_success_and_download(monkeypatch) -> None:
         assert payload["content_type"] == "application/pdf"
         assert payload["file_size_bytes"] > 0
         assert len(payload["sha256"]) == 64
+        assert payload["page_count"] == 1
         assert "/api/v1/test-assets/uploads/" in payload["storage_key"]
 
         upload_path = Path(urlparse(payload["storage_key"]).path)

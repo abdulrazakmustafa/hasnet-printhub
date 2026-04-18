@@ -1,0 +1,98 @@
+:root {
+  --bg-a: #0d2240;
+  --bg-b: #08172b;
+  --gold: #ffbe0b;
+  --ink: #f8f9fb;
+  --muted: #cfdaea;
+  --line: rgba(255, 255, 255, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+  color: var(--ink);
+  background: linear-gradient(140deg, var(--bg-a), var(--bg-b));
+  min-height: 100vh;
+}
+
+.shell {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 1.2rem 1rem 2rem;
+}
+
+.kicker {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  font-weight: 800;
+}
+
+h1 {
+  margin: 0.2rem 0;
+}
+
+.hint {
+  color: var(--muted);
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+label {
+  color: var(--muted);
+}
+
+input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink);
+  padding: 0.65rem 0.75rem;
+}
+
+.actions {
+  margin-top: 0.9rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+button {
+  border: none;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+button:not(.ghost) {
+  color: #1a2e49;
+  background: linear-gradient(135deg, #ffbe0b, #f6a401);
+}
+
+button.ghost {
+  color: var(--ink);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.status {
+  min-height: 1.2rem;
+}

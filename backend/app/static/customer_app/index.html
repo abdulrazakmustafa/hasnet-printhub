@@ -3,140 +3,130 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hasnet PrintHub Customer Flow</title>
+  <title>Hasnet PrintHub Kiosk</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="bg-shape bg-one"></div>
-  <div class="bg-shape bg-two"></div>
-  <main class="app-shell">
-    <header class="hero">
-      <p class="kicker">Hasnet PrintHub</p>
-      <h1>Customer Print Flow</h1>
-      <p class="subtitle">Upload -> quote -> pay -> status -> receipt</p>
+  <div class="ambient ambient-left"></div>
+  <div class="ambient ambient-right"></div>
+
+  <main class="kiosk-shell">
+    <header class="brand">
+      <div class="logo-chip">H</div>
+      <div class="brand-text">
+        <p class="brand-overline">HASNET ICT SOLUTION</p>
+        <h1>PrintHub</h1>
+      </div>
     </header>
 
-    <section class="card settings">
-      <h2>API Settings</h2>
-      <label for="apiBaseUrl">API Base URL</label>
-      <input id="apiBaseUrl" type="text" placeholder="http://hph-pi01.local:8000/api/v1">
-      <p class="hint">Default uses this server origin with <code>/api/v1</code>.</p>
-    </section>
+    <ol class="stepper" id="stepper">
+      <li data-step="1" class="active">Upload</li>
+      <li data-step="2">Print Options</li>
+      <li data-step="3">Price</li>
+      <li data-step="4">Payment</li>
+      <li data-step="5">Finish</li>
+    </ol>
 
-    <section class="card">
-      <h2>1. Upload PDF</h2>
-      <div class="grid two">
-        <div>
-          <label for="pdfFile">Document</label>
-          <input id="pdfFile" type="file" accept="application/pdf">
-        </div>
-        <div class="actions">
-          <button id="uploadBtn" type="button">Upload PDF</button>
-        </div>
+    <section class="panel active" data-step-panel="1">
+      <h2>Karibu Hasnet PrintHub</h2>
+      <p class="lead">Upload your PDF document to start printing.</p>
+      <div class="upload-box">
+        <label for="pdfFile">Select your document (PDF only)</label>
+        <input id="pdfFile" type="file" accept="application/pdf">
       </div>
-      <div id="uploadSummary" class="summary empty">No upload yet.</div>
+      <button id="uploadBtn" class="btn btn-primary" type="button">Upload Document</button>
+      <div id="uploadFeedback" class="feedback"></div>
     </section>
 
-    <section class="card">
-      <h2>2. Create Quote</h2>
-      <div class="grid two">
-        <div>
-          <label for="pages">Pages</label>
-          <input id="pages" type="number" min="1" value="1">
+    <section class="panel" data-step-panel="2">
+      <h2>Check Your Print Details</h2>
+      <p class="lead">Pages are detected automatically by the system.</p>
+      <div class="detail-grid">
+        <div class="info-tile">
+          <span class="label">Document</span>
+          <strong id="infoFileName">-</strong>
         </div>
-        <div>
-          <label for="copies">Copies</label>
+        <div class="info-tile">
+          <span class="label">Pages (Auto)</span>
+          <strong id="infoPageCount">-</strong>
+        </div>
+        <div class="field">
+          <label for="copies">Number of Copies</label>
           <input id="copies" type="number" min="1" value="1">
         </div>
-        <div>
-          <label for="color">Color</label>
-          <select id="color">
-            <option value="bw" selected>Black and White</option>
-            <option value="color">Color</option>
-          </select>
-        </div>
-        <div>
-          <label for="currency">Currency</label>
-          <input id="currency" type="text" value="TZS">
-        </div>
-        <div>
-          <label for="bwPrice">BW Price/Page</label>
-          <input id="bwPrice" type="number" min="0" value="1000">
-        </div>
-        <div>
-          <label for="colorPrice">Color Price/Page</label>
-          <input id="colorPrice" type="number" min="0" value="3000">
-        </div>
-        <div>
-          <label for="deviceCode">Device Code</label>
-          <input id="deviceCode" type="text" value="pi-kiosk-001">
+        <div class="field">
+          <label>Print Mode</label>
+          <div class="segmented" id="modeSelector">
+            <button type="button" data-mode="bw" class="active">Black & White</button>
+            <button type="button" data-mode="color">Color</button>
+          </div>
         </div>
       </div>
       <div class="actions">
-        <button id="quoteBtn" type="button">Create Quote</button>
+        <button id="toStep3Btn" class="btn btn-primary" type="button">Next</button>
       </div>
-      <div id="quoteSummary" class="summary empty">No quote yet.</div>
     </section>
 
-    <section class="card">
-      <h2>3. Create Payment</h2>
-      <div class="grid two">
-        <div>
-          <label for="method">Method</label>
+    <section class="panel" data-step-panel="3">
+      <h2>Order Summary</h2>
+      <p class="lead">Review your cost before payment.</p>
+      <div class="summary-card">
+        <div><span>Pages</span><strong id="sumPages">-</strong></div>
+        <div><span>Copies</span><strong id="sumCopies">-</strong></div>
+        <div><span>Mode</span><strong id="sumMode">-</strong></div>
+        <div><span>Price Per Page</span><strong id="sumUnitPrice">-</strong></div>
+        <div class="total"><span>Total</span><strong id="sumTotal">-</strong></div>
+      </div>
+      <div class="actions split">
+        <button id="backToStep2Btn" class="btn btn-ghost" type="button">Back</button>
+        <button id="toStep4Btn" class="btn btn-primary" type="button">Proceed to Payment</button>
+      </div>
+    </section>
+
+    <section class="panel" data-step-panel="4">
+      <h2>Payment Details</h2>
+      <p class="lead">Enter details and tap <strong>Pay to Print</strong>.</p>
+      <div class="detail-grid">
+        <div class="field full">
+          <label for="fullName">Full Name</label>
+          <input id="fullName" type="text" placeholder="Enter full name">
+        </div>
+        <div class="field full">
+          <label for="msisdn">Mobile Number</label>
+          <input id="msisdn" type="text" placeholder="+2557XXXXXXXX">
+        </div>
+        <div class="field">
+          <label for="method">Payment Method</label>
           <select id="method">
             <option value="mpesa">M-Pesa</option>
-            <option value="tigo">Tigo</option>
-            <option value="airtel">Airtel</option>
+            <option value="tigo">Tigo Pesa</option>
+            <option value="airtel">Airtel Money</option>
             <option value="snippe">Snippe</option>
           </select>
         </div>
-        <div>
-          <label for="msisdn">Phone (MSISDN)</label>
-          <input id="msisdn" type="text" value="+255700123456">
-        </div>
-        <div>
-          <label for="firstName">First Name</label>
-          <input id="firstName" type="text" value="PrintHub">
-        </div>
-        <div>
-          <label for="lastName">Last Name</label>
-          <input id="lastName" type="text" value="Customer">
-        </div>
-        <div>
-          <label for="email">Email</label>
-          <input id="email" type="email" value="customer@hasnet.local">
-        </div>
       </div>
       <div class="actions split">
-        <button id="payBtn" type="button">Create Payment</button>
-        <button id="retrySafeBtn" class="ghost" type="button">Create Payment (Retry-Safe)</button>
+        <button id="backToStep3Btn" class="btn btn-ghost" type="button">Back</button>
+        <button id="payBtn" class="btn btn-primary" type="button">Pay to Print</button>
       </div>
-      <div id="paymentSummary" class="summary empty">No payment yet.</div>
+      <div id="paymentFeedback" class="feedback"></div>
     </section>
 
-    <section class="card">
-      <h2>4. Customer Status</h2>
-      <div class="actions split">
-        <button id="statusBtn" type="button">Fetch Status</button>
-        <button id="pollBtn" class="ghost" type="button">Start Auto Poll</button>
+    <section class="panel" data-step-panel="5">
+      <h2 id="finishTitle">Processing...</h2>
+      <p id="finishMessage" class="lead">Please wait while we confirm payment and print your document.</p>
+      <div class="finish-box">
+        <div><span>Status</span><strong id="finishStatus">Waiting</strong></div>
+        <div><span>Job ID</span><strong id="finishJobId">-</strong></div>
+        <div><span>Reference</span><strong id="finishRef">-</strong></div>
       </div>
-      <div id="statusSummary" class="summary empty">No status yet.</div>
-      <ul id="timelineList" class="timeline"></ul>
-    </section>
-
-    <section class="card">
-      <h2>5. Receipt</h2>
+      <p class="support">Need help? Call support: <strong>+255 777 019 901</strong></p>
       <div class="actions">
-        <button id="receiptBtn" type="button">Fetch Receipt</button>
+        <button id="newPrintBtn" class="btn btn-primary" type="button">Start New Print</button>
       </div>
-      <div id="receiptSummary" class="summary empty">No receipt yet.</div>
-    </section>
-
-    <section class="card logs">
-      <h2>Activity Log</h2>
-      <pre id="logPanel"></pre>
     </section>
   </main>
+
   <script src="./app.js"></script>
 </body>
 </html>

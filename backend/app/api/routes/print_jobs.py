@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
@@ -77,6 +78,40 @@ def _load_upload_meta_or_422(upload_id: str) -> tuple[Path, dict]:
     return file_path, metadata
 
 
+def _detect_pdf_page_count_or_422(pdf_bytes: bytes) -> int:
+    page_hits = re.findall(rb"/Type\s*/Page\b", pdf_bytes)
+    page_count = len(page_hits)
+    if page_count < 1:
+        count_hits = re.findall(rb"/Count\s+(\d+)", pdf_bytes)
+        parsed_counts = []
+        for raw in count_hits:
+            try:
+                parsed_counts.append(int(raw))
+            except ValueError:
+                continue
+        if parsed_counts:
+            page_count = max(parsed_counts)
+
+    if page_count < 1 or page_count > 2000:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="PDF page count is outside supported range (1-2000).",
+        )
+    return page_count
+
+
+def _resolve_upload_page_count_or_422(upload_meta: dict, upload_file_path: Path) -> int:
+    raw_page_count = upload_meta.get("page_count")
+    try:
+        parsed = int(raw_page_count)
+        if 1 <= parsed <= 2000:
+            return parsed
+    except (TypeError, ValueError):
+        pass
+
+    return _detect_pdf_page_count_or_422(upload_file_path.read_bytes())
+
+
 @router.post("/upload", response_model=PrintJobUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_print_job_pdf(request: Request, file: UploadFile = File(...)) -> PrintJobUploadResponse:
     file_name = _validate_upload_filename_or_422(file.filename or "")
@@ -100,21 +135,24 @@ async def upload_print_job_pdf(request: Request, file: UploadFile = File(...)) -
 
     if not payload:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is empty.")
-    if not bytes(payload).startswith(b"%PDF-"):
+    payload_bytes = bytes(payload)
+    if not payload_bytes.startswith(b"%PDF-"):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded content is not a PDF.")
+    page_count = _detect_pdf_page_count_or_422(payload_bytes)
 
     _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     upload_id = str(uuid.uuid4())
     stored_name = f"{upload_id}.pdf"
     stored_path = _UPLOADS_DIR / stored_name
-    stored_path.write_bytes(payload)
-    sha256 = hashlib.sha256(bytes(payload)).hexdigest()
+    stored_path.write_bytes(payload_bytes)
+    sha256 = hashlib.sha256(payload_bytes).hexdigest()
     metadata = {
         "upload_id": upload_id,
         "file_name": file_name,
         "file_size_bytes": len(payload),
         "content_type": "application/pdf",
         "sha256": sha256,
+        "page_count": page_count,
         "stored_name": stored_name,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -129,18 +167,12 @@ async def upload_print_job_pdf(request: Request, file: UploadFile = File(...)) -
         file_size_bytes=len(payload),
         content_type="application/pdf",
         sha256=sha256,
+        page_count=page_count,
     )
 
 
 @router.post("", response_model=PrintJobCreateResponse)
 def create_quote(payload: PrintJobCreateRequest, request: Request, db: Session = Depends(get_db)) -> PrintJobCreateResponse:
-    total = compute_total_cost(
-        pages=payload.pages,
-        copies=payload.copies,
-        color=payload.color,
-        bw_price_per_page=payload.bw_price_per_page,
-        color_price_per_page=payload.color_price_per_page,
-    )
     try:
         color_mode = ColorMode(payload.color)
     except ValueError as exc:
@@ -149,6 +181,7 @@ def create_quote(payload: PrintJobCreateRequest, request: Request, db: Session =
             detail=f"Unsupported color mode '{payload.color}'.",
         ) from exc
     price_per_page = payload.color_price_per_page if color_mode == ColorMode.color else payload.bw_price_per_page
+    effective_pages = payload.pages
 
     target_device_code = payload.device_code.strip() or "prototype-local"
     device = db.query(Device).filter(Device.device_code == target_device_code).one_or_none()
@@ -174,6 +207,7 @@ def create_quote(payload: PrintJobCreateRequest, request: Request, db: Session =
     normalized_upload_id = (payload.upload_id or "").strip()
     if normalized_upload_id:
         upload_file_path, upload_meta = _load_upload_meta_or_422(normalized_upload_id)
+        effective_pages = _resolve_upload_page_count_or_422(upload_meta, upload_file_path)
         if not (payload.storage_key or "").strip():
             storage_key = _build_upload_storage_key(request, normalized_upload_id)
         if (payload.original_file_name or "").strip().lower() == "pending-upload.pdf":
@@ -190,13 +224,21 @@ def create_quote(payload: PrintJobCreateRequest, request: Request, db: Session =
         else:
             file_sha256 = hashlib.sha256(upload_file_path.read_bytes()).hexdigest()
 
+    total = compute_total_cost(
+        pages=effective_pages,
+        copies=payload.copies,
+        color=payload.color,
+        bw_price_per_page=payload.bw_price_per_page,
+        color_price_per_page=payload.color_price_per_page,
+    )
+
     job = PrintJob(
         device_id=device.id,
         original_file_name=original_file_name,
         storage_key=storage_key,
         file_sha256=file_sha256,
         file_size_bytes=file_size_bytes,
-        pages=payload.pages,
+        pages=effective_pages,
         color=color_mode,
         copies=payload.copies,
         price_per_page=price_per_page,

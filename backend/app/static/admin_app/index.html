@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hasnet PrintHub Admin Pricing</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <p class="kicker">HASNET PRINTHUB ADMIN</p>
+      <h1>Pricing Control</h1>
+      <p class="hint">Update kiosk print price from here.</p>
+    </header>
+
+    <section class="card">
+      <div class="grid">
+        <label for="bw">Black & White Price / Page</label>
+        <input id="bw" type="number" min="0" step="0.01">
+
+        <label for="color">Color Price / Page</label>
+        <input id="color" type="number" min="0" step="0.01">
+
+        <label for="currency">Currency</label>
+        <input id="currency" type="text" maxlength="3">
+      </div>
+      <div class="actions">
+        <button id="saveBtn" type="button">Save Pricing</button>
+        <button id="reloadBtn" class="ghost" type="button">Reload</button>
+      </div>
+      <p id="status" class="status"></p>
+    </section>
+
+    <section class="card">
+      <h2>Current Effective Pricing</h2>
+      <p id="preview">-</p>
+      <p class="hint">Customer kiosk uses this pricing when creating quotes.</p>
+    </section>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

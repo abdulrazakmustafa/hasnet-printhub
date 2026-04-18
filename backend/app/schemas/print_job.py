@@ -114,6 +114,7 @@ class PrintJobUploadResponse(BaseModel):
     file_size_bytes: int
     content_type: str
     sha256: str
+    page_count: int
 
 
 class CustomerTimelineEvent(BaseModel):

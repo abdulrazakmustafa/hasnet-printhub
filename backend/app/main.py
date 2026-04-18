@@ -66,6 +66,10 @@ _customer_app_dir = Path(__file__).resolve().parent / "static" / "customer_app"
 if _customer_app_dir.exists():
     app.mount("/customer-app", StaticFiles(directory=str(_customer_app_dir), html=True), name="customer-app")
 
+_admin_app_dir = Path(__file__).resolve().parent / "static" / "admin_app"
+if _admin_app_dir.exists():
+    app.mount("/admin-app", StaticFiles(directory=str(_admin_app_dir), html=True), name="admin-app")
+
 
 @app.get("/healthz", tags=["Health"])
 def healthz() -> dict[str, str]:
