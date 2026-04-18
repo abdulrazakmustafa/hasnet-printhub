@@ -47,3 +47,6 @@ For multi-kiosk rollout with one profile per Pi, use:
 
 Frontend integration kickoff checklist:
 - `docs/frontend-kickoff-checklist.md`
+
+Customer flow starter UI (served by backend):
+- `http://<api-host>:8000/customer-app`

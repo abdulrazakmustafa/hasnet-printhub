@@ -1,8 +1,10 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import settings
@@ -59,6 +61,10 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title=settings.project_name, debug=settings.debug, lifespan=lifespan)
 app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+_customer_app_dir = Path(__file__).resolve().parent / "static" / "customer_app"
+if _customer_app_dir.exists():
+    app.mount("/customer-app", StaticFiles(directory=str(_customer_app_dir), html=True), name="customer-app")
 
 
 @app.get("/healthz", tags=["Health"])

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hasnet PrintHub Customer Flow</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="bg-shape bg-one"></div>
+  <div class="bg-shape bg-two"></div>
+  <main class="app-shell">
+    <header class="hero">
+      <p class="kicker">Hasnet PrintHub</p>
+      <h1>Customer Print Flow</h1>
+      <p class="subtitle">Upload -> quote -> pay -> status -> receipt</p>
+    </header>
+
+    <section class="card settings">
+      <h2>API Settings</h2>
+      <label for="apiBaseUrl">API Base URL</label>
+      <input id="apiBaseUrl" type="text" placeholder="http://hph-pi01.local:8000/api/v1">
+      <p class="hint">Default uses this server origin with <code>/api/v1</code>.</p>
+    </section>
+
+    <section class="card">
+      <h2>1. Upload PDF</h2>
+      <div class="grid two">
+        <div>
+          <label for="pdfFile">Document</label>
+          <input id="pdfFile" type="file" accept="application/pdf">
+        </div>
+        <div class="actions">
+          <button id="uploadBtn" type="button">Upload PDF</button>
+        </div>
+      </div>
+      <div id="uploadSummary" class="summary empty">No upload yet.</div>
+    </section>
+
+    <section class="card">
+      <h2>2. Create Quote</h2>
+      <div class="grid two">
+        <div>
+          <label for="pages">Pages</label>
+          <input id="pages" type="number" min="1" value="1">
+        </div>
+        <div>
+          <label for="copies">Copies</label>
+          <input id="copies" type="number" min="1" value="1">
+        </div>
+        <div>
+          <label for="color">Color</label>
+          <select id="color">
+            <option value="bw" selected>Black and White</option>
+            <option value="color">Color</option>
+          </select>
+        </div>
+        <div>
+          <label for="currency">Currency</label>
+          <input id="currency" type="text" value="TZS">
+        </div>
+        <div>
+          <label for="bwPrice">BW Price/Page</label>
+          <input id="bwPrice" type="number" min="0" value="1000">
+        </div>
+        <div>
+          <label for="colorPrice">Color Price/Page</label>
+          <input id="colorPrice" type="number" min="0" value="3000">
+        </div>
+        <div>
+          <label for="deviceCode">Device Code</label>
+          <input id="deviceCode" type="text" value="pi-kiosk-001">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="quoteBtn" type="button">Create Quote</button>
+      </div>
+      <div id="quoteSummary" class="summary empty">No quote yet.</div>
+    </section>
+
+    <section class="card">
+      <h2>3. Create Payment</h2>
+      <div class="grid two">
+        <div>
+          <label for="method">Method</label>
+          <select id="method">
+            <option value="mpesa">M-Pesa</option>
+            <option value="tigo">Tigo</option>
+            <option value="airtel">Airtel</option>
+            <option value="snippe">Snippe</option>
+          </select>
+        </div>
+        <div>
+          <label for="msisdn">Phone (MSISDN)</label>
+          <input id="msisdn" type="text" value="+255700123456">
+        </div>
+        <div>
+          <label for="firstName">First Name</label>
+          <input id="firstName" type="text" value="PrintHub">
+        </div>
+        <div>
+          <label for="lastName">Last Name</label>
+          <input id="lastName" type="text" value="Customer">
+        </div>
+        <div>
+          <label for="email">Email</label>
+          <input id="email" type="email" value="customer@hasnet.local">
+        </div>
+      </div>
+      <div class="actions split">
+        <button id="payBtn" type="button">Create Payment</button>
+        <button id="retrySafeBtn" class="ghost" type="button">Create Payment (Retry-Safe)</button>
+      </div>
+      <div id="paymentSummary" class="summary empty">No payment yet.</div>
+    </section>
+
+    <section class="card">
+      <h2>4. Customer Status</h2>
+      <div class="actions split">
+        <button id="statusBtn" type="button">Fetch Status</button>
+        <button id="pollBtn" class="ghost" type="button">Start Auto Poll</button>
+      </div>
+      <div id="statusSummary" class="summary empty">No status yet.</div>
+      <ul id="timelineList" class="timeline"></ul>
+    </section>
+
+    <section class="card">
+      <h2>5. Receipt</h2>
+      <div class="actions">
+        <button id="receiptBtn" type="button">Fetch Receipt</button>
+      </div>
+      <div id="receiptSummary" class="summary empty">No receipt yet.</div>
+    </section>
+
+    <section class="card logs">
+      <h2>Activity Log</h2>
+      <pre id="logPanel"></pre>
+    </section>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

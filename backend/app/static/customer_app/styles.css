@@ -1,0 +1,251 @@
+:root {
+  --bg-a: #0d1b2a;
+  --bg-b: #1b263b;
+  --ink: #f7f8fa;
+  --muted: #c6ced8;
+  --card: rgba(13, 27, 42, 0.82);
+  --line: rgba(255, 255, 255, 0.14);
+  --brand: #ffb703;
+  --brand-deep: #fb8500;
+  --ok: #88e06d;
+  --warn: #ffd166;
+  --bad: #ef476f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 10% 0%, #223a5e 0%, transparent 68%),
+    radial-gradient(900px 700px at 85% 100%, #3b1f5a 0%, transparent 70%),
+    linear-gradient(140deg, var(--bg-a), var(--bg-b));
+  min-height: 100vh;
+}
+
+.bg-shape {
+  position: fixed;
+  border-radius: 999px;
+  filter: blur(18px);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.bg-one {
+  width: 420px;
+  height: 420px;
+  background: #ffb703;
+  top: -130px;
+  right: -90px;
+}
+
+.bg-two {
+  width: 360px;
+  height: 360px;
+  background: #4cc9f0;
+  left: -90px;
+  bottom: -120px;
+}
+
+.app-shell {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+  position: relative;
+  z-index: 1;
+}
+
+.hero {
+  margin-bottom: 1rem;
+  animation: fade-up 340ms ease-out;
+}
+
+.kicker {
+  margin: 0;
+  font-weight: 700;
+  color: var(--brand);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+}
+
+h1 {
+  margin: 0.22rem 0;
+  font-size: clamp(1.6rem, 2.8vw, 2.4rem);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--muted);
+}
+
+.card {
+  margin-top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  backdrop-filter: blur(8px);
+  padding: 1rem;
+  animation: fade-up 420ms ease both;
+}
+
+.card h2 {
+  margin: 0 0 0.9rem;
+  font-size: 1.05rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+input,
+select,
+button {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  padding: 0.65rem 0.75rem;
+  font-size: 0.95rem;
+}
+
+input,
+select {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+}
+
+button {
+  border: none;
+  color: #111;
+  background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 110ms ease, filter 110ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+button.ghost {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.grid {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.actions {
+  margin-top: 0.8rem;
+}
+
+.actions.split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.hint {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.summary {
+  margin-top: 0.8rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 0.7rem;
+  font-size: 0.9rem;
+}
+
+.summary.empty {
+  color: var(--muted);
+}
+
+.summary.ok {
+  border-color: rgba(136, 224, 109, 0.5);
+}
+
+.summary.warn {
+  border-color: rgba(255, 209, 102, 0.5);
+}
+
+.summary.bad {
+  border-color: rgba(239, 71, 111, 0.6);
+}
+
+.timeline {
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline li {
+  margin: 0.45rem 0;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.timeline .state-done {
+  border-left: 4px solid var(--ok);
+}
+
+.timeline .state-current {
+  border-left: 4px solid var(--warn);
+}
+
+.timeline .state-blocked {
+  border-left: 4px solid var(--bad);
+}
+
+.logs pre {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+}
+
+@media (max-width: 760px) {
+  .grid.two,
+  .actions.split {
+    grid-template-columns: 1fr;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

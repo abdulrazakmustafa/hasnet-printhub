@@ -4,6 +4,14 @@ Date: 2026-04-18
 
 Frontend can start now. Backend contracts needed for customer and admin surfaces are available.
 
+## 0) Starter UI already added
+
+1. A working customer flow web UI is now served by backend at:
+   - `GET /customer-app`
+2. This starter UI already implements:
+   - upload -> quote -> pay -> status -> receipt
+   - retry-safe payment action button
+
 ## 1) Customer flow endpoints
 
 1. Upload PDF:
