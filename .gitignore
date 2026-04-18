@@ -16,6 +16,7 @@ env/
 # Environment files
 .env
 .env.*
+kiosk-profiles/*.local.json
 
 # IDE
 .idea/

@@ -40,3 +40,10 @@ Docs: see `docs/manual-steps.md` for all manual setup actions (DNS, SSL, SMTP, p
 
 For intranet-first rollout where customer flow runs fully on Pi, use:
 - `docs/pi-local-hosting-runbook.md`
+
+For multi-kiosk rollout with one profile per Pi, use:
+- `docs/multi-kiosk-provisioning.md`
+- `scripts/provision-kiosk-from-profile.ps1`
+
+Frontend integration kickoff checklist:
+- `docs/frontend-kickoff-checklist.md`
