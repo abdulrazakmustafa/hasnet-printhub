@@ -3,6 +3,8 @@
   const DEFAULT_DEVICE_CODE = "pi-kiosk-001";
   const DEFAULT_PAYMENT_METHOD = "mpesa";
   const POLL_INTERVAL_MS = 5000;
+  const URL_PARAMS = new URLSearchParams(window.location.search);
+  const QA_MODE = URL_PARAMS.get("qa") === "1";
   const STEP_LABELS = {
     1: "Upload",
     2: "Print Options",
@@ -33,6 +35,7 @@
     stepper: $("stepper"),
     progressBar: $("progressBar"),
     stepHint: $("stepHint"),
+    qaBadge: $("qaBadge"),
     panels: document.querySelectorAll("[data-step-panel]"),
     pdfFile: $("pdfFile"),
     uploadBtn: $("uploadBtn"),
@@ -84,7 +87,18 @@
     }
     ui.progressBar.style.width = `${Math.max(1, Math.min(5, step)) * 20}%`;
     ui.stepHint.textContent = `Step ${step} of 5: ${STEP_LABELS[step] || "Progress"}`;
+    updateQaBadge();
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function updateQaBadge() {
+    if (!QA_MODE || !ui.qaBadge) {
+      return;
+    }
+    const viewport = `${window.innerWidth}x${window.innerHeight}`;
+    const stepText = `Step ${state.step}: ${STEP_LABELS[state.step] || "-"}`;
+    ui.qaBadge.hidden = false;
+    ui.qaBadge.textContent = `QA ${viewport} | ${stepText}`;
   }
 
   function money(value) {
@@ -510,6 +524,10 @@
     bindModeButtons();
     bindPageSelection();
     bindEvents();
+    if (QA_MODE) {
+      updateQaBadge();
+      window.addEventListener("resize", updateQaBadge);
+    }
     setStep(1);
   }
 

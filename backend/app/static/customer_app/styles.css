@@ -399,6 +399,22 @@ button:disabled {
   color: #42517f;
 }
 
+.qa-badge {
+  position: fixed;
+  right: 8px;
+  bottom: 8px;
+  z-index: 9999;
+  border: 1px solid #8ca0d8;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #1f2b5f;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.3;
+  box-shadow: 0 6px 18px rgba(24, 32, 66, 0.25);
+}
+
 @media (max-width: 760px) {
   .site-strip {
     font-size: 0.72rem;
@@ -476,6 +492,10 @@ button:disabled {
 
   .support {
     font-size: 0.91rem;
+  }
+
+  .qa-badge {
+    font-size: 0.7rem;
   }
 }
 
