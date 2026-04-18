@@ -68,6 +68,8 @@ class AdminRefundDecisionRequest(BaseModel):
 
 
 def _parse_payment_status_filter(value: str | None) -> PaymentStatus | None:
+    if value is not None and not isinstance(value, str):
+        return None
     if not value or not value.strip():
         return None
     try:
@@ -80,6 +82,8 @@ def _parse_payment_status_filter(value: str | None) -> PaymentStatus | None:
 
 
 def _parse_payment_method_filter(value: str | None) -> PaymentMethod | None:
+    if value is not None and not isinstance(value, str):
+        return None
     if not value or not value.strip():
         return None
     try:
@@ -92,6 +96,8 @@ def _parse_payment_method_filter(value: str | None) -> PaymentMethod | None:
 
 
 def _parse_payment_lifecycle_filter(value: str | None) -> str | None:
+    if value is not None and not isinstance(value, str):
+        return None
     if not value or not value.strip():
         return None
     normalized = value.strip().lower()
@@ -498,6 +504,7 @@ def admin_dashboard_snapshot(
         method=None,
         provider=None,
         device_code=None,
+        lifecycle=None,
         db=db,
     )
     pending_incidents = admin_pending_payment_incidents(

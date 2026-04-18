@@ -16,12 +16,13 @@ def test_admin_dashboard_snapshot_composes_sources(monkeypatch) -> None:
             "alerts": {"active": 0},
         }
 
-    def fake_admin_payments(*, limit, db, payment_status=None, method=None, provider=None, device_code=None):
+    def fake_admin_payments(*, limit, db, payment_status=None, method=None, provider=None, device_code=None, lifecycle=None):
         assert db == "fake-db"
         assert payment_status is None
         assert method is None
         assert provider is None
         assert device_code is None
+        assert lifecycle is None
         seen["recent_payments_limit"] = limit
         return {"count": 1, "items": [{"payment_id": "p1"}]}
 

@@ -23,6 +23,10 @@ $pendingIncidentsUrl = "$ApiBaseUrl/admin/payments/pending-incidents?limit=$Limi
 $pricingUrl = "$ApiBaseUrl/admin/pricing"
 $dashboardSnapshotUrl = "$ApiBaseUrl/admin/dashboard/snapshot?recent_payments_limit=$Limit&pending_incidents_limit=$Limit"
 $reportUrl = "$ApiBaseUrl/admin/reports/today"
+$customerExperienceUrl = "$ApiBaseUrl/admin/customer-experience"
+$customerAvailabilityUrl = "$ApiBaseUrl/admin/customer-availability"
+$customerConfigUrl = "$ApiBaseUrl/print-jobs/customer-config"
+$refundsUrl = "$ApiBaseUrl/admin/refunds"
 
 Write-Host ""
 Write-Host ("GET {0}" -f $devicesUrl) -ForegroundColor DarkCyan
@@ -68,6 +72,36 @@ Write-Host ("- today_confirmed_amount: {0} {1}" -f $report.payments.confirmed_am
 Write-Host ("- today_printed_jobs: {0}" -f $report.jobs.printed)
 Write-Host ("- active_devices: {0}" -f $report.devices.active)
 
+Write-Host ""
+Write-Host ("GET {0}" -f $customerExperienceUrl) -ForegroundColor DarkCyan
+$customerExperience = Invoke-RestMethod -Method GET -Uri $customerExperienceUrl
+Write-Host ("- active_device_code: {0}" -f $customerExperience.active_device_code)
+
+Write-Host ""
+Write-Host ("GET {0}" -f $customerAvailabilityUrl) -ForegroundColor DarkCyan
+$customerAvailability = Invoke-RestMethod -Method GET -Uri $customerAvailabilityUrl
+Write-Host ("- customer_can_upload: {0}" -f $customerAvailability.availability.can_upload)
+Write-Host ("- customer_can_pay: {0}" -f $customerAvailability.availability.can_pay)
+Write-Host ("- customer_reason_code: {0}" -f $customerAvailability.availability.reason_code)
+
+Write-Host ""
+Write-Host ("GET {0}" -f $customerConfigUrl) -ForegroundColor DarkCyan
+$customerConfig = Invoke-RestMethod -Method GET -Uri $customerConfigUrl
+Write-Host ("- customer_config_contract: {0}" -f $customerConfig.contract_version)
+
+if (-not [string]::IsNullOrWhiteSpace([string]$customerAvailability.device_code)) {
+    $qrPackUrl = "$ApiBaseUrl/admin/devices/$($customerAvailability.device_code)/qr-pack"
+    Write-Host ""
+    Write-Host ("GET {0}" -f $qrPackUrl) -ForegroundColor DarkCyan
+    $qrPack = Invoke-RestMethod -Method GET -Uri $qrPackUrl
+    Write-Host ("- qr_entry_url: {0}" -f $qrPack.entry_url)
+}
+
+Write-Host ""
+Write-Host ("GET {0}" -f $refundsUrl) -ForegroundColor DarkCyan
+$refunds = Invoke-RestMethod -Method GET -Uri $refundsUrl
+Write-Host ("- refunds_count: {0}" -f $refunds.count)
+
 if (-not [string]::IsNullOrWhiteSpace($JobId)) {
     $parsedJob = $null
     try {
@@ -105,6 +139,11 @@ Write-Host ("- /admin/payments/pending-incidents: OK ({0} items)" -f (@($pending
 Write-Host "- /admin/pricing: OK"
 Write-Host "- /admin/dashboard/snapshot: OK"
 Write-Host "- /admin/reports/today: OK"
+Write-Host "- /admin/customer-experience: OK"
+Write-Host "- /admin/customer-availability: OK"
+Write-Host "- /print-jobs/customer-config: OK"
+Write-Host "- /admin/devices/{device_code}/qr-pack: OK"
+Write-Host "- /admin/refunds: OK"
 if (-not [string]::IsNullOrWhiteSpace($JobId)) {
     Write-Host "- /print-jobs/{job_id}/customer-status: OK"
     Write-Host "- /print-jobs/{job_id}/customer-receipt: OK"

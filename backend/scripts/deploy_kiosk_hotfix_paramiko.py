@@ -47,12 +47,13 @@ def main() -> int:
     remote_backend_dir = args.remote_backend_dir or f"/home/{args.pi_user}/hasnet-printhub/backend"
 
     files_to_upload = [
-        ("app/main.py", "app/main.py"),
-        ("assets/logo-white-2.png", "assets/logo-white-2.png"),
+        ("app/api/routes/admin.py", "app/api/routes/admin.py"),
+        ("app/api/routes/alerts.py", "app/api/routes/alerts.py"),
         ("app/api/routes/print_jobs.py", "app/api/routes/print_jobs.py"),
-        ("app/api/routes/devices.py", "app/api/routes/devices.py"),
-        ("app/core/config.py", "app/core/config.py"),
-        ("app/services/upload_storage.py", "app/services/upload_storage.py"),
+        ("app/services/payment_gateway.py", "app/services/payment_gateway.py"),
+        ("app/services/customer_experience.py", "app/services/customer_experience.py"),
+        ("app/services/device_actions.py", "app/services/device_actions.py"),
+        ("app/services/refund_workflow.py", "app/services/refund_workflow.py"),
         ("app/static/customer_app/index.html", "app/static/customer_app/index.html"),
         ("app/static/customer_app/app.js", "app/static/customer_app/app.js"),
         ("app/static/customer_app/styles.css", "app/static/customer_app/styles.css"),

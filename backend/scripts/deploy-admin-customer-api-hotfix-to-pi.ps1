@@ -29,7 +29,17 @@ $filesToUpload = @(
     @{ Local = (Join-Path $backendDir "app\api\routes\admin.py"); Remote = "$RemoteBackendDir/app/api/routes/admin.py" },
     @{ Local = (Join-Path $backendDir "app\api\routes\alerts.py"); Remote = "$RemoteBackendDir/app/api/routes/alerts.py" },
     @{ Local = (Join-Path $backendDir "app\api\routes\print_jobs.py"); Remote = "$RemoteBackendDir/app/api/routes/print_jobs.py" },
-    @{ Local = (Join-Path $backendDir "app\schemas\print_job.py"); Remote = "$RemoteBackendDir/app/schemas/print_job.py" }
+    @{ Local = (Join-Path $backendDir "app\schemas\print_job.py"); Remote = "$RemoteBackendDir/app/schemas/print_job.py" },
+    @{ Local = (Join-Path $backendDir "app\services\payment_gateway.py"); Remote = "$RemoteBackendDir/app/services/payment_gateway.py" },
+    @{ Local = (Join-Path $backendDir "app\services\customer_experience.py"); Remote = "$RemoteBackendDir/app/services/customer_experience.py" },
+    @{ Local = (Join-Path $backendDir "app\services\device_actions.py"); Remote = "$RemoteBackendDir/app/services/device_actions.py" },
+    @{ Local = (Join-Path $backendDir "app\services\refund_workflow.py"); Remote = "$RemoteBackendDir/app/services/refund_workflow.py" },
+    @{ Local = (Join-Path $backendDir "app\static\admin_app\index.html"); Remote = "$RemoteBackendDir/app/static/admin_app/index.html" },
+    @{ Local = (Join-Path $backendDir "app\static\admin_app\app.js"); Remote = "$RemoteBackendDir/app/static/admin_app/app.js" },
+    @{ Local = (Join-Path $backendDir "app\static\admin_app\styles.css"); Remote = "$RemoteBackendDir/app/static/admin_app/styles.css" },
+    @{ Local = (Join-Path $backendDir "app\static\customer_app\index.html"); Remote = "$RemoteBackendDir/app/static/customer_app/index.html" },
+    @{ Local = (Join-Path $backendDir "app\static\customer_app\app.js"); Remote = "$RemoteBackendDir/app/static/customer_app/app.js" },
+    @{ Local = (Join-Path $backendDir "app\static\customer_app\styles.css"); Remote = "$RemoteBackendDir/app/static/customer_app/styles.css" }
 )
 
 foreach ($entry in $filesToUpload) {
