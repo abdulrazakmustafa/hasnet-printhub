@@ -21,6 +21,12 @@ class PaymentCreateResponse(BaseModel):
     checkout_url: str | None = None
 
 
+class PaymentRetrySafeCreateResponse(BaseModel):
+    decision: str
+    reconcile_synced: int
+    payment: PaymentCreateResponse
+
+
 class PaymentWebhookPayload(BaseModel):
     transaction_reference: str
     provider_request_id: str
