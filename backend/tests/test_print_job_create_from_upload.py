@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException, status
 
+from app.api.routes import print_jobs as print_jobs_routes
 from app.api.routes.print_jobs import create_quote
 from app.models.print_job import PrintJob
 from app.schemas.print_job import PrintJobCreateRequest
@@ -202,3 +203,64 @@ def test_create_quote_rejects_custom_page_range_outside_upload_pages() -> None:
             pdf_path.unlink()
         if meta_path.exists():
             meta_path.unlink()
+
+
+def test_create_quote_rejects_color_when_printer_capability_is_disabled(monkeypatch) -> None:
+    def fake_config() -> dict:
+        return {
+            "active_device_code": "pi-kiosk-001",
+            "printer_capabilities": {
+                "default": {"color_enabled": False, "a3_enabled": False},
+                "devices": {},
+            },
+        }
+
+    monkeypatch.setattr(print_jobs_routes, "get_customer_experience_config", fake_config)
+
+    payload = PrintJobCreateRequest(
+        pages=2,
+        copies=1,
+        color="color",
+        bw_price_per_page=100,
+        color_price_per_page=300,
+        currency="TZS",
+    )
+    db = _FakeDB()
+    request = SimpleNamespace(base_url="http://hph-pi01.local:8000/")
+
+    with pytest.raises(HTTPException) as exc:
+        create_quote(payload=payload, request=request, db=db)
+
+    assert exc.value.status_code == status.HTTP_409_CONFLICT
+    assert "Color printing is not enabled" in exc.value.detail
+
+
+def test_create_quote_rejects_a3_when_printer_capability_is_disabled(monkeypatch) -> None:
+    def fake_config() -> dict:
+        return {
+            "active_device_code": "pi-kiosk-001",
+            "printer_capabilities": {
+                "default": {"color_enabled": True, "a3_enabled": False},
+                "devices": {},
+            },
+        }
+
+    monkeypatch.setattr(print_jobs_routes, "get_customer_experience_config", fake_config)
+
+    payload = PrintJobCreateRequest(
+        pages=2,
+        copies=1,
+        color="bw",
+        paper_size="a3",
+        bw_price_per_page=100,
+        color_price_per_page=300,
+        currency="TZS",
+    )
+    db = _FakeDB()
+    request = SimpleNamespace(base_url="http://hph-pi01.local:8000/")
+
+    with pytest.raises(HTTPException) as exc:
+        create_quote(payload=payload, request=request, db=db)
+
+    assert exc.value.status_code == status.HTTP_409_CONFLICT
+    assert "A3 printing is not enabled" in exc.value.detail

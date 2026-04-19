@@ -134,7 +134,12 @@ mv /etc/dhcpcd.conf.tmp /etc/dhcpcd.conf
 
 rfkill unblock wifi || true
 
-systemctl restart dhcpcd
+if systemctl list-unit-files | grep -q '^dhcpcd\.service'; then
+  systemctl restart dhcpcd || true
+elif systemctl list-unit-files | grep -q '^NetworkManager\.service'; then
+  nmcli connection reload || true
+  systemctl restart NetworkManager || true
+fi
 systemctl restart dnsmasq
 systemctl enable dnsmasq
 systemctl restart hostapd

@@ -12,3 +12,4 @@ httpx==0.28.1
 celery==5.5.3
 redis==6.2.0
 pytest==8.4.1
+qrcode[pil]==7.4.2

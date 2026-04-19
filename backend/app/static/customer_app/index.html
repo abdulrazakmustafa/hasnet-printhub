@@ -94,13 +94,26 @@
         <div class="field">
           <label>Print Mode</label>
           <div class="mode-group">
-            <label class="mode-option">
+            <label class="mode-option" id="bwModeOption">
               <input type="radio" name="printMode" value="bw" checked>
               <span>Black & White</span>
             </label>
-            <label class="mode-option">
+            <label class="mode-option" id="colorModeOption">
               <input type="radio" name="printMode" value="color">
               <span>Color</span>
+            </label>
+          </div>
+        </div>
+        <div class="field" id="paperSizeField">
+          <label>Paper Size</label>
+          <div class="mode-group">
+            <label class="mode-option active" id="paperSizeA4Option">
+              <input type="radio" name="paperSize" value="a4" checked>
+              <span>A4</span>
+            </label>
+            <label class="mode-option" id="paperSizeA3Option">
+              <input type="radio" name="paperSize" value="a3">
+              <span>A3</span>
             </label>
           </div>
         </div>
@@ -119,6 +132,7 @@
         <div><span>Page Selection</span><strong id="sumPageSelection">-</strong></div>
         <div><span>Copies</span><strong id="sumCopies">-</strong></div>
         <div><span>Mode</span><strong id="sumMode">-</strong></div>
+        <div><span>Paper Size</span><strong id="sumPaperSize">A4</strong></div>
         <div><span>Price Per Page</span><strong id="sumUnitPrice">-</strong></div>
         <div class="total"><span>Total</span><strong id="sumTotal">-</strong></div>
       </div>

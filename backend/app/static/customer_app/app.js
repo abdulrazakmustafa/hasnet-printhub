@@ -27,6 +27,7 @@
       currency: "TZS",
     },
     mode: "bw",
+    paperSize: "a4",
     pageSelection: "all",
     pollTimer: null,
     availabilityTimer: null,
@@ -39,6 +40,10 @@
     customerConfig: null,
     deviceCode: DEFAULT_DEVICE_CODE,
     paymentMethod: DEFAULT_PAYMENT_METHOD,
+    printerCapabilities: {
+      color_enabled: true,
+      a3_enabled: false,
+    },
   };
 
   const $ = (id) => document.getElementById(id);
@@ -71,6 +76,11 @@
     infoPageCount: $("infoPageCount"),
     copies: $("copies"),
     modeInputs: document.querySelectorAll('input[name="printMode"]'),
+    bwModeOption: $("bwModeOption"),
+    colorModeOption: $("colorModeOption"),
+    paperSizeField: $("paperSizeField"),
+    paperSizeInputs: document.querySelectorAll('input[name="paperSize"]'),
+    paperSizeA3Option: $("paperSizeA3Option"),
     pageSelectionInputs: document.querySelectorAll('input[name="pageSelection"]'),
     rangeStartPage: $("rangeStartPage"),
     rangeEndPage: $("rangeEndPage"),
@@ -80,6 +90,7 @@
     sumPageSelection: $("sumPageSelection"),
     sumCopies: $("sumCopies"),
     sumMode: $("sumMode"),
+    sumPaperSize: $("sumPaperSize"),
     sumUnitPrice: $("sumUnitPrice"),
     sumTotal: $("sumTotal"),
     backToStep2Btn: $("backToStep2Btn"),
@@ -174,6 +185,65 @@
     return `Pages ${ui.rangeStartPage.value} to ${ui.rangeEndPage.value}`;
   }
 
+  function paperSizeLabel() {
+    return state.paperSize === "a3" ? "A3" : "A4";
+  }
+
+  function resolvePrinterCapabilities(config, deviceCode) {
+    const printerCapabilities = config?.printer_capabilities || {};
+    const defaults = printerCapabilities.default || {};
+    const resolved = {
+      color_enabled: Boolean(defaults.color_enabled !== false),
+      a3_enabled: Boolean(defaults.a3_enabled),
+    };
+    const normalizedDeviceCode = String(deviceCode || "").trim();
+    if (!normalizedDeviceCode) return resolved;
+    const perDeviceFlags = printerCapabilities.devices?.[normalizedDeviceCode];
+    if (!perDeviceFlags || typeof perDeviceFlags !== "object") return resolved;
+
+    return {
+      color_enabled: Boolean(perDeviceFlags.color_enabled !== false),
+      a3_enabled: Boolean(perDeviceFlags.a3_enabled),
+    };
+  }
+
+  function applyPrinterCapabilities(capabilities) {
+    const supportsColor = Boolean(capabilities?.color_enabled !== false);
+    const supportsA3 = Boolean(capabilities?.a3_enabled);
+
+    ui.colorModeOption.hidden = !supportsColor;
+    if (!supportsColor && state.mode === "color") {
+      state.mode = "bw";
+    }
+
+    for (const input of ui.modeInputs) {
+      if (input.value === "color" && !supportsColor) {
+        input.checked = false;
+      } else if (input.value === state.mode) {
+        input.checked = true;
+      }
+      const container = input.closest(".mode-option");
+      if (container) container.classList.toggle("active", input.checked);
+    }
+
+    ui.paperSizeA3Option.hidden = !supportsA3;
+    ui.paperSizeField.hidden = !supportsA3;
+    if (!supportsA3 && state.paperSize === "a3") {
+      state.paperSize = "a4";
+    }
+    for (const input of ui.paperSizeInputs) {
+      if (input.value === "a3" && !supportsA3) {
+        input.checked = false;
+      } else if (input.value === state.paperSize) {
+        input.checked = true;
+      }
+      const container = input.closest(".mode-option");
+      if (container) container.classList.toggle("active", input.checked);
+    }
+
+    renderQuickEstimate();
+  }
+
   function renderQuickEstimate() {
     if (!state.upload) {
       ui.quickEstimate.textContent = "Estimated Total: -";
@@ -182,7 +252,7 @@
     const selected = selectedPagesCount();
     const copies = Number(ui.copies.value || 1);
     const modeLabel = state.mode === "color" ? "Color" : "Black & White";
-    ui.quickEstimate.textContent = `Estimated Total: ${money(totalCost())} (${selected} page(s) x ${copies} copy/copies, ${modeLabel})`;
+    ui.quickEstimate.textContent = `Estimated Total: ${money(totalCost())} (${selected} page(s) x ${copies} copy/copies, ${modeLabel}, ${paperSizeLabel()})`;
   }
 
   function syncPageRangeUi() {
@@ -201,6 +271,7 @@
     ui.infoPageCount.textContent = String(state.upload.page_count);
     ui.copies.value = "1";
     state.mode = "bw";
+    state.paperSize = "a4";
     state.pageSelection = "all";
     ui.rangeStartPage.value = "1";
     ui.rangeEndPage.value = String(state.upload.page_count || 1);
@@ -212,9 +283,16 @@
       const container = input.closest(".mode-option");
       if (container) container.classList.toggle("active", active);
     }
+    for (const input of ui.paperSizeInputs) {
+      const active = input.value === "a4";
+      input.checked = active;
+      const container = input.closest(".mode-option");
+      if (container) container.classList.toggle("active", active);
+    }
     for (const input of ui.pageSelectionInputs) {
       input.checked = input.value === "all";
     }
+    applyPrinterCapabilities(state.printerCapabilities);
     syncPageRangeUi();
     renderQuickEstimate();
   }
@@ -228,6 +306,7 @@
     ui.sumPageSelection.textContent = pageSelectionLabel();
     ui.sumCopies.textContent = String(copies);
     ui.sumMode.textContent = modeLabel;
+    ui.sumPaperSize.textContent = paperSizeLabel();
     ui.sumUnitPrice.textContent = money(unitPrice);
     ui.sumTotal.textContent = money(totalCost());
   }
@@ -312,6 +391,7 @@
     const content = cfg.content || {};
     const theme = cfg.theme || {};
     const flow = cfg.flow || {};
+    const resolvedPrinterCapabilities = payload.printer_capabilities || resolvePrinterCapabilities(cfg, state.deviceCode);
     const siteStripText = String(cfg.site_strip_text || "").trim();
 
     applyTheme(theme);
@@ -330,6 +410,11 @@
     ui.paymentMethodLabel.textContent = `${titleCase(state.paymentMethod)} (default)`;
     ui.paymentMethodTile.hidden = Boolean(flow.hide_payment_method !== false);
     ui.shell.classList.toggle("stepper-hidden", flow.show_stepper === false);
+    state.printerCapabilities = {
+      color_enabled: Boolean(resolvedPrinterCapabilities.color_enabled !== false),
+      a3_enabled: Boolean(resolvedPrinterCapabilities.a3_enabled),
+    };
+    applyPrinterCapabilities(state.printerCapabilities);
 
     applyAvailability(payload.availability || state.availability);
   }
@@ -387,6 +472,7 @@
       pages,
       copies,
       color: state.mode,
+      paper_size: state.paperSize,
       page_selection: state.pageSelection,
       range_start_page: state.pageSelection === "range" ? Number(ui.rangeStartPage.value || 0) : null,
       range_end_page: state.pageSelection === "range" ? Number(ui.rangeEndPage.value || 0) : null,
@@ -534,6 +620,7 @@
     state.status = null;
     state.receipt = null;
     state.mode = "bw";
+    state.paperSize = "a4";
     state.pageSelection = "all";
     ui.pdfFile.value = "";
     ui.fullName.value = "";
@@ -542,6 +629,7 @@
     ui.quickEstimate.textContent = "Estimated Total: -";
     setFeedback(ui.uploadFeedback, "", "");
     setFeedback(ui.paymentFeedback, "", "");
+    applyPrinterCapabilities(state.printerCapabilities);
     setStep(1);
   }
 
@@ -565,6 +653,20 @@
         if (!input.checked) return;
         state.pageSelection = input.value;
         syncPageRangeUi();
+      });
+    }
+  }
+
+  function bindPaperSizeButtons() {
+    for (const input of ui.paperSizeInputs) {
+      input.addEventListener("change", () => {
+        if (!input.checked) return;
+        state.paperSize = input.value;
+        for (const peer of ui.paperSizeInputs) {
+          const container = peer.closest(".mode-option");
+          if (container) container.classList.toggle("active", peer.checked);
+        }
+        renderQuickEstimate();
       });
     }
   }
@@ -626,6 +728,7 @@
   async function init() {
     bindModeButtons();
     bindPageSelection();
+    bindPaperSizeButtons();
     bindEvents();
     if (QA_MODE) {
       updateQaBadge();

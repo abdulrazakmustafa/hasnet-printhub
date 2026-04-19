@@ -1,0 +1,912 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R 9 0 R 11 0 R 13 0 R 15 0 R] /Count 6 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+4 0 obj
+<< /Length 2887 >>
+stream
+BT
+/F1 18.0 Tf
+1 0 0 1 50.00 800.00 Tm
+(Hasnet PrintHub - Raspberry Pi Wi-Fi Recovery) Tj
+/F1 18.0 Tf
+1 0 0 1 50.00 775.70 Tm
+(Guide \(Non-Technical\)) Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 751.40 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 735.20 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 720.35 Tm
+(Date: 2026-04-19) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 705.50 Tm
+() Tj
+/F1 14.0 Tf
+1 0 0 1 50.00 690.65 Tm
+(Goal) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 671.75 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 656.90 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 642.05 Tm
+(Connect your Raspberry Pi to a new Wi-Fi network when:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 627.20 Tm
+(- the old Wi-Fi is no longer available) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 612.35 Tm
+(- you do not have Ethernet cable) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 597.50 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 582.65 Tm
+(This guide gives you 3 methods. Start with Method 1 because it is usually) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 567.80 Tm
+(the fastest.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 552.95 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 538.10 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 523.25 Tm
+() Tj
+/F1 14.0 Tf
+1 0 0 1 50.00 508.40 Tm
+(Your Actual HPH Connection Details \(Use These\)) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 489.50 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 474.65 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 459.80 Tm
+(From your current PrintHub setup:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 444.95 Tm
+(- Pi host name: `hph-pi01.local`) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 430.10 Tm
+(- Pi user: `hasnet_pi`) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 415.25 Tm
+(- Main SSH command \(PowerShell\):) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 400.40 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 385.55 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 370.70 Tm
+(    & 'C:\\Windows\\System32\\OpenSSH\\ssh.exe' hasnet_pi@hph-pi01.local) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 357.20 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 342.35 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 327.50 Tm
+(Password to enter:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 312.65 Tm
+(- Use the Linux password for user `hasnet_pi` on that Pi.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 297.80 Tm
+(- The repo does not store your real SSH password in plain text.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 282.95 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 268.10 Tm
+(If you forgot this password:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 253.25 Tm
+(1. Use Method 2 \(HDMI + keyboard\).) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 238.40 Tm
+(2. Log in locally on Pi.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 223.55 Tm
+(3. Run:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 208.70 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 193.85 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 179.00 Tm
+(    passwd hasnet_pi) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 165.50 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 150.65 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 135.80 Tm
+(4. Set a new password and use it for SSH.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 120.95 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 106.10 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 91.25 Tm
+() Tj
+/F1 14.0 Tf
+1 0 0 1 50.00 76.40 Tm
+(Before You Start \(Quick Checklist\)) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Length 3197 >>
+stream
+BT
+/F1 11.0 Tf
+1 0 0 1 50.00 800.00 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 785.15 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 770.30 Tm
+(Prepare these items:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 755.45 Tm
+(- Raspberry Pi power adapter) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 740.60 Tm
+(- Phone \(for hotspot method\)) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 725.75 Tm
+(- New Wi-Fi name and password) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 710.90 Tm
+(- Optional but useful: HDMI monitor + keyboard) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 696.05 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 681.20 Tm
+(Important:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 666.35 Tm
+(- Wi-Fi names and passwords are case-sensitive) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 651.50 Tm
+(- Keep the Pi close to the Wi-Fi router for first connection) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 636.65 Tm
+(- Wait 1 to 3 minutes after boot before testing connection) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 621.80 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 606.95 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 592.10 Tm
+() Tj
+/F1 14.0 Tf
+1 0 0 1 50.00 577.25 Tm
+(Method 1 \(Fastest\): Phone Hotspot With Same Name As Old) Tj
+/F1 14.0 Tf
+1 0 0 1 50.00 558.35 Tm
+(Wi-Fi) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 539.45 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 524.60 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 509.75 Tm
+(Use this when you remember the old Wi-Fi name and password.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 494.90 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 480.05 Tm
+(Step 1: Create a phone hotspot that matches old Wi-Fi exactly) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 463.85 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 449.00 Tm
+(On your phone hotspot settings:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 434.15 Tm
+(1. Set hotspot name \(SSID\) to the old Wi-Fi name exactly.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 419.30 Tm
+(2. Set hotspot password to the old Wi-Fi password exactly.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 404.45 Tm
+(3. Turn hotspot ON.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 389.60 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 374.75 Tm
+(Example:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 359.90 Tm
+(- old Wi-Fi name was `HomeNet123`) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 345.05 Tm
+(- old password was `MyPass2024`) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 330.20 Tm
+(- your hotspot must use the exact same values) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 315.35 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 300.50 Tm
+(Step 2: Boot the Raspberry Pi) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 284.30 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 269.45 Tm
+(1. Power on the Pi.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 254.60 Tm
+(2. Wait 1 to 3 minutes.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 239.75 Tm
+(3. The Pi should auto-connect to your phone hotspot because it recognizes) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 224.90 Tm
+(the same saved network.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 210.05 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 195.20 Tm
+(Step 3: Connect to Pi over SSH from your computer) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 179.00 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 164.15 Tm
+(Open PowerShell on your computer and run:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 149.30 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 134.45 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 119.60 Tm
+(    & 'C:\\Windows\\System32\\OpenSSH\\ssh.exe' hasnet_pi@hph-pi01.local) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 106.10 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 91.25 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 76.40 Tm
+(When prompted:) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>
+endobj
+8 0 obj
+<< /Length 2901 >>
+stream
+BT
+/F1 11.0 Tf
+1 0 0 1 50.00 800.00 Tm
+(- Username is already in command \(`hasnet_pi`\)) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 785.15 Tm
+(- Enter password for `hasnet_pi`) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 770.30 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 755.45 Tm
+(If `hph-pi01.local` does not work, find the Pi IP from phone hotspot) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 740.60 Tm
+(connected devices list, then use:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 725.75 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 710.90 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 696.05 Tm
+(    & 'C:\\Windows\\System32\\OpenSSH\\ssh.exe' hasnet_pi@<PI_IP_ADDRESS>) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 682.55 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 667.70 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 652.85 Tm
+(Step 4: Switch Pi to the new real Wi-Fi) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 636.65 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 621.80 Tm
+(After SSH login:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 606.95 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 592.10 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 577.25 Tm
+(    sudo raspi-config) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 563.75 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 548.90 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 534.05 Tm
+(In the menu:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 519.20 Tm
+(1. Select `System Options`) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 504.35 Tm
+(2. Select `Wireless LAN`) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 489.50 Tm
+(3. Enter new Wi-Fi SSID \(name\)) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 474.65 Tm
+(4. Enter new Wi-Fi password) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 459.80 Tm
+(5. Finish and exit) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 444.95 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 430.10 Tm
+(Step 5: Reboot and test) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 413.90 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 399.05 Tm
+(Run:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 384.20 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 369.35 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 354.50 Tm
+(    sudo reboot) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 341.00 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 326.15 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 311.30 Tm
+(Then:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 296.45 Tm
+(1. Turn OFF phone hotspot.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 281.60 Tm
+(2. Wait for Pi to restart.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 266.75 Tm
+(3. Test SSH again on new network:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 251.90 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 237.05 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 222.20 Tm
+(    & 'C:\\Windows\\System32\\OpenSSH\\ssh.exe' hasnet_pi@hph-pi01.local) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 208.70 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 193.85 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 179.00 Tm
+(If it connects, you are done.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 164.15 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 149.30 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 134.45 Tm
+() Tj
+/F1 14.0 Tf
+1 0 0 1 50.00 119.60 Tm
+(Method 2: One-Time HDMI + Keyboard Setup) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 100.70 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 85.85 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 71.00 Tm
+(Use this when you do not remember old Wi-Fi credentials.) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 8 0 R >>
+endobj
+10 0 obj
+<< /Length 2705 >>
+stream
+BT
+/F1 11.0 Tf
+1 0 0 1 50.00 800.00 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 785.15 Tm
+(Step 1: Connect peripherals) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 768.95 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 754.10 Tm
+(1. Connect Pi to monitor using HDMI.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 739.25 Tm
+(2. Connect USB keyboard.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 724.40 Tm
+(3. Power on Pi.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 709.55 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 694.70 Tm
+(Step 2: Open Wi-Fi setup menu) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 678.50 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 663.65 Tm
+(On Pi terminal:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 648.80 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 633.95 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 619.10 Tm
+(    sudo raspi-config) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 605.60 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 590.75 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 575.90 Tm
+(Then:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 561.05 Tm
+(1. Go to `System Options`) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 546.20 Tm
+(2. Open `Wireless LAN`) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 531.35 Tm
+(3. Enter new Wi-Fi name) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 516.50 Tm
+(4. Enter new Wi-Fi password) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 501.65 Tm
+(5. Save and exit) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 486.80 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 471.95 Tm
+(Step 3: Reboot) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 455.75 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 440.90 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 426.05 Tm
+(    sudo reboot) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 412.55 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 397.70 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 382.85 Tm
+(Step 4: Confirm from your computer) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 366.65 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 351.80 Tm
+(After reboot, try:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 336.95 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 322.10 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 307.25 Tm
+(    & 'C:\\Windows\\System32\\OpenSSH\\ssh.exe' hasnet_pi@hph-pi01.local) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 293.75 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 278.90 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 264.05 Tm
+(If SSH connects, setup is successful.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 249.20 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 234.35 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 219.50 Tm
+() Tj
+/F1 14.0 Tf
+1 0 0 1 50.00 204.65 Tm
+(Method 3: Fully Headless \(No Display\) Using Raspberry Pi) Tj
+/F1 14.0 Tf
+1 0 0 1 50.00 185.75 Tm
+(Imager) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 166.85 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 152.00 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 137.15 Tm
+(Use this when:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 122.30 Tm
+(- you cannot access old Wi-Fi) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 107.45 Tm
+(- you do not have display/keyboard) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 92.60 Tm
+(- you can access the SD card) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 77.75 Tm
+() Tj
+ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 10 0 R >>
+endobj
+12 0 obj
+<< /Length 3184 >>
+stream
+BT
+/F1 12.0 Tf
+1 0 0 1 50.00 800.00 Tm
+(Step 1: Prepare SD card in Raspberry Pi Imager) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 783.80 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 768.95 Tm
+(1. Insert SD card into your computer.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 754.10 Tm
+(2. Open Raspberry Pi Imager.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 739.25 Tm
+(3. Choose Raspberry Pi OS.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 724.40 Tm
+(4. Click the advanced settings icon \(gear\).) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 709.55 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 694.70 Tm
+(Step 2: Enter basic settings) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 678.50 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 663.65 Tm
+(In advanced settings:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 648.80 Tm
+(1. Set hostname \(example: `hph-pi01`\).) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 633.95 Tm
+(2. Enable SSH.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 619.10 Tm
+(3. Set username and password.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 604.25 Tm
+(4. Configure Wi-Fi:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 589.40 Tm
+(   - Wi-Fi SSID = new network name) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 574.55 Tm
+(   - Wi-Fi password = new network password) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 559.70 Tm
+(   - Wi-Fi country = your country code) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 544.85 Tm
+(5. Save settings.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 530.00 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 515.15 Tm
+(Step 3: Write image and boot) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 498.95 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 484.10 Tm
+(1. Write image to SD card.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 469.25 Tm
+(2. Insert SD card into Pi.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 454.40 Tm
+(3. Power on Pi.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 439.55 Tm
+(4. Wait 2 to 5 minutes for first boot.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 424.70 Tm
+() Tj
+/F1 12.0 Tf
+1 0 0 1 50.00 409.85 Tm
+(Step 4: Test SSH) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 393.65 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 378.80 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 363.95 Tm
+(    & 'C:\\Windows\\System32\\OpenSSH\\ssh.exe' hasnet_pi@hph-pi01.local) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 350.45 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 335.60 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 320.75 Tm
+(If mDNS is blocked in your network, use Pi IP instead:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 305.90 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 291.05 Tm
+() Tj
+/F1 10.0 Tf
+1 0 0 1 50.00 276.20 Tm
+(    & 'C:\\Windows\\System32\\OpenSSH\\ssh.exe' hasnet_pi@<PI_IP_ADDRESS>) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 262.70 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 247.85 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 233.00 Tm
+(If that fails, check router client list and SSH to Pi IP.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 218.15 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 203.30 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 188.45 Tm
+() Tj
+/F1 14.0 Tf
+1 0 0 1 50.00 173.60 Tm
+(Troubleshooting \(Simple\)) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 154.70 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 139.85 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 125.00 Tm
+(If Pi does not connect:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 110.15 Tm
+(1. Re-check Wi-Fi name and password spelling.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 95.30 Tm
+(2. Move Pi closer to router.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 80.45 Tm
+(3. Reboot Pi and router.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 65.60 Tm
+(4. Ensure router is 2.4 GHz compatible \(many Pi setups use 2.4 GHz) Tj
+ET
+endstream
+endobj
+13 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 12 0 R >>
+endobj
+14 0 obj
+<< /Length 1695 >>
+stream
+BT
+/F1 11.0 Tf
+1 0 0 1 50.00 800.00 Tm
+(reliably\).) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 785.15 Tm
+(5. Try Method 2 if Method 1 fails.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 770.30 Tm
+(6. Try Method 3 if both fail.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 755.45 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 740.60 Tm
+(If SSH says host not found:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 725.75 Tm
+(1. Try Pi IP instead of `.local` name.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 710.90 Tm
+(2. Confirm Pi and your computer are on the same network.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 696.05 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 681.20 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 666.35 Tm
+() Tj
+/F1 14.0 Tf
+1 0 0 1 50.00 651.50 Tm
+(Quick Decision Guide) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 632.60 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 617.75 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 602.90 Tm
+(Use this path:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 588.05 Tm
+(1. Know old Wi-Fi details? Use Method 1.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 573.20 Tm
+(2. Do not know old Wi-Fi details but have monitor/keyboard? Use Method 2.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 558.35 Tm
+(3. No monitor/keyboard and no old Wi-Fi details? Use Method 3.) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 543.50 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 528.65 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 513.80 Tm
+() Tj
+/F1 14.0 Tf
+1 0 0 1 50.00 498.95 Tm
+(Completion Check) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 480.05 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 465.20 Tm
+() Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 450.35 Tm
+(You are done when all are true:) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 435.50 Tm
+(- Pi appears in your router connected devices) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 420.65 Tm
+(- SSH works from your computer) Tj
+/F1 11.0 Tf
+1 0 0 1 50.00 405.80 Tm
+(- Pi stays online after reboot) Tj
+ET
+endstream
+endobj
+15 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 14 0 R >>
+endobj
+xref
+0 16
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000148 00000 n 
+0000000216 00000 n 
+0000003155 00000 n 
+0000003281 00000 n 
+0000006530 00000 n 
+0000006656 00000 n 
+0000009609 00000 n 
+0000009735 00000 n 
+0000012493 00000 n 
+0000012621 00000 n 
+0000015858 00000 n 
+0000015986 00000 n 
+0000017734 00000 n 
+trailer
+<< /Size 16 /Root 1 0 R >>
+startxref
+17862
+%%EOF

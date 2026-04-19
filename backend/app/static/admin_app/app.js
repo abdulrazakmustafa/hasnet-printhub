@@ -5,6 +5,8 @@
   const state = {
     customerExperience: null,
     qrPack: null,
+    selectedDeviceCode: "",
+    knownDevices: [],
   };
 
   const ui = {
@@ -12,15 +14,17 @@
     views: document.querySelectorAll("[data-view-panel]"),
     status: $("status"),
     refreshAllBtn: $("refreshAllBtn"),
+    globalDeviceSelector: $("globalDeviceSelector"),
+    globalDeviceReloadBtn: $("globalDeviceReloadBtn"),
 
     kpiConfirmedPayments: $("kpiConfirmedPayments"),
     kpiConfirmedAmount: $("kpiConfirmedAmount"),
     kpiPrintedJobs: $("kpiPrintedJobs"),
     kpiActiveDevices: $("kpiActiveDevices"),
-    kpiPendingIncidents: $("kpiPendingIncidents"),
-    kpiEscalatedIncidents: $("kpiEscalatedIncidents"),
+    kpiAvgUptimeHours: $("kpiAvgUptimeHours"),
+    kpiErrorEvents24h: $("kpiErrorEvents24h"),
     overviewRecentPaymentsBody: $("overviewRecentPaymentsBody"),
-    overviewIncidentsBody: $("overviewIncidentsBody"),
+    overviewDeviceMonitor: $("overviewDeviceMonitor"),
 
     devicesIncludeInactive: $("devicesIncludeInactive"),
     devicesBody: $("devicesBody"),
@@ -61,6 +65,14 @@
     reportJobsProgress: $("reportJobsProgress"),
     reportDevicesActive: $("reportDevicesActive"),
     reportDevicesOnline: $("reportDevicesOnline"),
+    reportHistoryReloadBtn: $("reportHistoryReloadBtn"),
+    reportHistoryFilters: $("reportHistoryFilters"),
+    reportHistoryDays: $("reportHistoryDays"),
+    reportCleanupDays: $("reportCleanupDays"),
+    reportCleanupDryRunBtn: $("reportCleanupDryRunBtn"),
+    reportCleanupRunBtn: $("reportCleanupRunBtn"),
+    reportHistoryBody: $("reportHistoryBody"),
+    reportRetentionPreview: $("reportRetentionPreview"),
 
     pricingForm: $("pricingForm"),
     pricingReloadBtn: $("pricingReloadBtn"),
@@ -68,6 +80,14 @@
     pricingColor: $("pricingColor"),
     pricingCurrency: $("pricingCurrency"),
     pricingPreview: $("pricingPreview"),
+    pricingSupportsColor: $("pricingSupportsColor"),
+    pricingSupportsA3: $("pricingSupportsA3"),
+    pricingBwOnly: $("pricingBwOnly"),
+    pricingA4Only: $("pricingA4Only"),
+    pricingCapabilityPreview: $("pricingCapabilityPreview"),
+
+    kioskSubtabSelect: $("kioskSubtabSelect"),
+    kioskPanels: document.querySelectorAll("[data-kiosk-panel]"),
 
     customerExperienceForm: $("customerExperienceForm"),
     customerExperienceReloadBtn: $("customerExperienceReloadBtn"),
@@ -97,6 +117,8 @@
     cxHotspotSsid: $("cxHotspotSsid"),
     cxHotspotPassphrase: $("cxHotspotPassphrase"),
     cxHotspotSecurity: $("cxHotspotSecurity"),
+    cxHotspotCountry: $("cxHotspotCountry"),
+    cxHotspotChannel: $("cxHotspotChannel"),
 
     deviceActionForm: $("deviceActionForm"),
     deviceActionDeviceCode: $("deviceActionDeviceCode"),
@@ -104,6 +126,8 @@
     deviceActionNote: $("deviceActionNote"),
     actionPauseKioskBtn: $("actionPauseKioskBtn"),
     actionResumeKioskBtn: $("actionResumeKioskBtn"),
+    actionApplyHotspotBtn: $("actionApplyHotspotBtn"),
+    actionDisableHotspotBtn: $("actionDisableHotspotBtn"),
     actionRestartAgentBtn: $("actionRestartAgentBtn"),
     actionRestartApiBtn: $("actionRestartApiBtn"),
     actionRebootDeviceBtn: $("actionRebootDeviceBtn"),
@@ -271,8 +295,24 @@
     });
   }
 
+  function showKioskPanel(panel) {
+    const selected = String(panel || "experience");
+    ui.kioskPanels.forEach((card) => {
+      card.classList.toggle("kiosk-visible", card.dataset.kioskPanel === selected);
+    });
+    if (ui.kioskSubtabSelect && ui.kioskSubtabSelect.value !== selected) {
+      ui.kioskSubtabSelect.value = selected;
+    }
+  }
+
   function setRows(tbody, rowsHtml) {
     tbody.innerHTML = rowsHtml || "<tr><td colspan=\"20\">No data</td></tr>";
+  }
+
+  function currentDeviceScope() {
+    const selected = String(state.selectedDeviceCode || "").trim();
+    if (selected) return selected;
+    return "";
   }
 
   function currentDeviceCode() {
@@ -280,8 +320,103 @@
     if (fromAction) return fromAction;
     const fromConfig = String(ui.cxActiveDeviceCode.value || "").trim();
     if (fromConfig) return fromConfig;
+    const fromScope = currentDeviceScope();
+    if (fromScope) return fromScope;
     if (state.customerExperience?.active_device_code) return String(state.customerExperience.active_device_code);
     return "pi-kiosk-001";
+  }
+
+  function ensureDeviceOptions(items) {
+    const map = new Map();
+    (items || []).forEach((item) => {
+      const code = String(item.device_code || "").trim();
+      if (!code) return;
+      map.set(code, {
+        device_code: code,
+        site_name: item.site_name || "",
+      });
+    });
+    state.knownDevices = Array.from(map.values()).sort((a, b) => a.device_code.localeCompare(b.device_code));
+    const previous = String(state.selectedDeviceCode || "").trim();
+    ui.globalDeviceSelector.innerHTML = [
+      "<option value=\"\">All devices</option>",
+      ...state.knownDevices.map((item) => {
+        const label = `${item.device_code}${item.site_name ? ` (${item.site_name})` : ""}`;
+        return `<option value="${escapeHtml(item.device_code)}">${escapeHtml(label)}</option>`;
+      }),
+    ].join("");
+    if (previous && state.knownDevices.some((item) => item.device_code === previous)) {
+      state.selectedDeviceCode = previous;
+      ui.globalDeviceSelector.value = previous;
+    }
+  }
+
+  async function loadDeviceOptions() {
+    const payload = await call("/admin/devices?include_inactive=true", { method: "GET" });
+    ensureDeviceOptions(payload.items || []);
+  }
+
+  function resolvePrinterCapabilities(config, deviceCode) {
+    const printerCapabilities = config?.printer_capabilities || {};
+    const defaults = printerCapabilities.default || {};
+    const resolved = {
+      color_enabled: Boolean(defaults.color_enabled !== false),
+      a3_enabled: Boolean(defaults.a3_enabled),
+    };
+    const normalizedDeviceCode = String(deviceCode || "").trim();
+    if (!normalizedDeviceCode) return resolved;
+    const perDeviceFlags = printerCapabilities.devices?.[normalizedDeviceCode];
+    if (!perDeviceFlags || typeof perDeviceFlags !== "object") return resolved;
+    return {
+      color_enabled: Boolean(perDeviceFlags.color_enabled !== false),
+      a3_enabled: Boolean(perDeviceFlags.a3_enabled),
+    };
+  }
+
+  function normalizeCapabilityToggles() {
+    if (parseBooleanInput(ui.pricingBwOnly.value)) {
+      ui.pricingSupportsColor.value = "false";
+    }
+    if (parseBooleanInput(ui.pricingA4Only.value)) {
+      ui.pricingSupportsA3.value = "false";
+    }
+    ui.pricingBwOnly.value = String(!parseBooleanInput(ui.pricingSupportsColor.value));
+    ui.pricingA4Only.value = String(!parseBooleanInput(ui.pricingSupportsA3.value));
+  }
+
+  function updatePricingCapabilityPreview() {
+    normalizeCapabilityToggles();
+    const supportsColor = parseBooleanInput(ui.pricingSupportsColor.value);
+    const supportsA3 = parseBooleanInput(ui.pricingSupportsA3.value);
+    const scope = currentDeviceScope() || "default scope";
+    const mode1 = supportsColor ? "Color + Black & White" : "Black & White only";
+    const mode2 = supportsA3 ? "A3 + A4" : "A4 only";
+    ui.pricingCapabilityPreview.textContent = `Capabilities (${scope}): ${mode1} | ${mode2}`;
+  }
+
+  function syncPricingCapabilitiesFromConfig() {
+    const scoped = currentDeviceScope() || currentDeviceCode();
+    const capabilities = resolvePrinterCapabilities(state.customerExperience || {}, scoped);
+    ui.pricingSupportsColor.value = String(capabilities.color_enabled);
+    ui.pricingSupportsA3.value = String(capabilities.a3_enabled);
+    updatePricingCapabilityPreview();
+  }
+
+  function paymentRowsHtml(items) {
+    return (items || []).map((item) => `
+      <tr>
+        <td>${escapeHtml(formatDate(item.requested_at))}</td>
+        <td>${escapeHtml(item.provider_request_id || "-")}</td>
+        <td>${chip(item.method)}</td>
+        <td>${chip(item.status)}</td>
+        <td>${chip(item.lifecycle || "other")}</td>
+        <td>${escapeHtml(toMoney(item.amount, item.currency))}</td>
+        <td>${escapeHtml(paymentPayerLabel(item))}</td>
+        <td>${escapeHtml(paymentDocumentLabel(item))}</td>
+        <td>${escapeHtml(item.print_job_id || "-")}</td>
+        <td>${escapeHtml(item.device_code || "-")}</td>
+      </tr>
+    `).join("");
   }
 
   function fillCustomerExperienceForm(config) {
@@ -320,12 +455,15 @@
     ui.cxHotspotSsid.value = hotspot.ssid || "";
     ui.cxHotspotPassphrase.value = hotspot.passphrase || "";
     ui.cxHotspotSecurity.value = hotspot.wifi_security || "WPA";
+    ui.cxHotspotCountry.value = hotspot.country || "TZ";
+    ui.cxHotspotChannel.value = String(Number(hotspot.channel || 6));
 
     const activeCode = currentDeviceCode();
     ui.deviceActionDeviceCode.value = activeCode;
     ui.paymentsDeviceCode.placeholder = activeCode;
     ui.incidentsDeviceCode.placeholder = activeCode;
     ui.alertsDeviceCode.placeholder = activeCode;
+    syncPricingCapabilitiesFromConfig();
   }
 
   function customerExperiencePayloadFromForm() {
@@ -366,8 +504,36 @@
         ssid: String(ui.cxHotspotSsid.value || "").trim(),
         passphrase: String(ui.cxHotspotPassphrase.value || "").trim(),
         wifi_security: String(ui.cxHotspotSecurity.value || "WPA").toUpperCase(),
+        country: String(ui.cxHotspotCountry.value || "TZ").trim().toUpperCase(),
+        channel: Number(ui.cxHotspotChannel.value || 6),
       },
     };
+  }
+
+  function applyPricingCapabilitiesToConfig(config) {
+    const payload = { ...(config || {}) };
+    const printerCapabilities = payload.printer_capabilities || {};
+    const defaults = printerCapabilities.default || {};
+    const perDevice = { ...(printerCapabilities.devices || {}) };
+    normalizeCapabilityToggles();
+    const supportsColor = parseBooleanInput(ui.pricingSupportsColor.value);
+    const supportsA3 = parseBooleanInput(ui.pricingSupportsA3.value);
+    const scopedDevice = currentDeviceScope() || String(payload.active_device_code || "").trim() || "pi-kiosk-001";
+    perDevice[scopedDevice] = {
+      color_enabled: supportsColor,
+      a3_enabled: supportsA3,
+    };
+    payload.printer_capabilities = {
+      default: {
+        color_enabled: Boolean(defaults.color_enabled !== false),
+        a3_enabled: Boolean(defaults.a3_enabled),
+      },
+      devices: perDevice,
+    };
+    if (!payload.active_device_code && scopedDevice) {
+      payload.active_device_code = scopedDevice;
+    }
+    return payload;
   }
 
   function setQrPreview(imgElement, value) {
@@ -375,52 +541,79 @@
       imgElement.removeAttribute("src");
       return;
     }
-    imgElement.src = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(value)}`;
+    imgElement.src = `${API_BASE}/admin/qr-code?${queryString({ data: value, box_size: 8 })}`;
   }
+
+  function renderOverviewMonitor(monitor) {
+    const devices = monitor?.devices || [];
+    if (devices.length < 1) {
+      ui.overviewDeviceMonitor.innerHTML = "<p class=\"hint\">No device telemetry available yet.</p>";
+      return;
+    }
+    const maxUptime = Math.max(1, ...devices.map((item) => Number(item.uptime_hours || 0)));
+    const maxErrors = Math.max(1, ...devices.map((item) => Number(item.error_events_24h || 0)));
+    const maxAlerts = Math.max(1, ...devices.map((item) => Number(item.active_alerts || 0)));
+    ui.overviewDeviceMonitor.innerHTML = devices.map((item) => {
+      const uptimePct = Math.min(100, Math.round((Number(item.uptime_hours || 0) / maxUptime) * 100));
+      const errorPct = Math.min(100, Math.round((Number(item.error_events_24h || 0) / maxErrors) * 100));
+      const alertPct = Math.min(100, Math.round((Number(item.active_alerts || 0) / maxAlerts) * 100));
+      return `
+        <article class="monitor-card">
+          <div class="monitor-head">
+            <span class="monitor-title">${escapeHtml(item.device_code || "-")}</span>
+            ${chip(item.printer_status || item.status || "-")}
+          </div>
+          <div class="monitor-line">
+            <p>Uptime Hours: ${escapeHtml(String(item.uptime_hours ?? 0))}</p>
+            <div class="bar-track"><div class="bar-fill" style="width:${uptimePct}%"></div></div>
+          </div>
+          <div class="monitor-line">
+            <p>Error Events (24h): ${escapeHtml(String(item.error_events_24h ?? 0))}</p>
+            <div class="bar-track"><div class="bar-fill bad" style="width:${errorPct}%"></div></div>
+          </div>
+          <div class="monitor-line">
+            <p>Active Alerts: ${escapeHtml(String(item.active_alerts ?? 0))}</p>
+            <div class="bar-track"><div class="bar-fill warn" style="width:${alertPct}%"></div></div>
+          </div>
+          <p class="monitor-meta">Last Seen: ${escapeHtml(formatDate(item.last_seen_at))}</p>
+        </article>
+      `;
+    }).join("");
+  }
+
   async function loadOverview() {
-    const payload = await call("/admin/dashboard/snapshot?recent_payments_limit=10&pending_incidents_limit=10", { method: "GET" });
+    const payload = await call(`/admin/dashboard/snapshot?${queryString({
+      recent_payments_limit: 50,
+      pending_incidents_limit: 10,
+      device_code: currentDeviceScope(),
+    })}`, { method: "GET" });
     const kpis = payload.kpis || {};
+    const monitor = payload.monitor || {};
+    const monitorSummary = monitor.summary || {};
     ui.kpiConfirmedPayments.textContent = String(kpis.confirmed_payments_today ?? 0);
     ui.kpiConfirmedAmount.textContent = toMoney(kpis.confirmed_amount_today, payload.pricing ? payload.pricing.currency : "TZS");
     ui.kpiPrintedJobs.textContent = String(kpis.printed_jobs_today ?? 0);
     ui.kpiActiveDevices.textContent = String(kpis.active_devices ?? 0);
-    ui.kpiPendingIncidents.textContent = String(kpis.pending_incidents ?? 0);
-    ui.kpiEscalatedIncidents.textContent = String(kpis.escalated_pending_incidents ?? 0);
-
-    const payments = (payload.recent_payments && payload.recent_payments.items) || [];
-    const paymentRows = payments.map((item) => `
-      <tr>
-        <td>${escapeHtml(formatDate(item.requested_at))}</td>
-        <td>${chip(item.method)}</td>
-        <td>${chip(item.status)}</td>
-        <td>${escapeHtml(toMoney(item.amount, item.currency))}</td>
-        <td>${escapeHtml(item.device_code || "-")}</td>
-      </tr>
-    `).join("");
-    setRows(ui.overviewRecentPaymentsBody, paymentRows);
-
-    const incidents = (payload.pending_incidents && payload.pending_incidents.items) || [];
-    const incidentRows = incidents.map((item) => `
-      <tr>
-        <td>${escapeHtml(item.provider_request_id || "-")}</td>
-        <td>${chip(item.method)}</td>
-        <td>${escapeHtml(String(item.pending_minutes ?? "-"))}</td>
-        <td>${chip(item.escalated ? "escalated" : "normal")}</td>
-        <td>${escapeHtml(item.device_code || "-")}</td>
-      </tr>
-    `).join("");
-    setRows(ui.overviewIncidentsBody, incidentRows);
+    ui.kpiAvgUptimeHours.textContent = String(monitorSummary.avg_uptime_hours ?? 0);
+    ui.kpiErrorEvents24h.textContent = String(monitorSummary.total_error_events_24h ?? 0);
+    setRows(ui.overviewRecentPaymentsBody, paymentRowsHtml(payload.recent_payments?.items || []));
+    renderOverviewMonitor(monitor);
   }
 
   async function loadDevices() {
     const includeInactive = ui.devicesIncludeInactive.checked ? "true" : "false";
     const payload = await call(`/admin/devices?include_inactive=${includeInactive}`, { method: "GET" });
+    ensureDeviceOptions(payload.items || []);
     const rows = (payload.items || []).map((item) => `
       <tr>
         <td>${escapeHtml(item.device_code)}</td>
         <td>${escapeHtml(item.site_name || "-")}</td>
         <td>${chip(item.status)}</td>
         <td>${chip(item.printer_status)}</td>
+        <td>${escapeHtml([
+          item.printer_capabilities?.color_enabled ? "Color" : "BW only",
+          item.printer_capabilities?.a3_enabled ? "A3 enabled" : "A4 only",
+        ].join(" | "))}</td>
         <td>${escapeHtml(formatDate(item.last_seen_at))}</td>
         <td>${escapeHtml(String(item.active_alerts ?? 0))}</td>
         <td>${escapeHtml(`T:${item.jobs.total} P:${item.jobs.printed} F:${item.jobs.failed}`)}</td>
@@ -436,27 +629,13 @@
       method: ui.paymentsMethod.value,
       lifecycle: ui.paymentsLifecycle.value,
       provider: ui.paymentsProvider.value.trim(),
-      device_code: ui.paymentsDeviceCode.value.trim(),
+      device_code: ui.paymentsDeviceCode.value.trim() || currentDeviceScope(),
     });
   }
 
   async function loadPayments() {
     const payload = await call(`/admin/payments?${paymentsQuery()}`, { method: "GET" });
-    const rows = (payload.items || []).map((item) => `
-      <tr>
-        <td>${escapeHtml(formatDate(item.requested_at))}</td>
-        <td>${escapeHtml(item.provider_request_id || "-")}</td>
-        <td>${chip(item.method)}</td>
-        <td>${chip(item.status)}</td>
-        <td>${chip(item.lifecycle || "other")}</td>
-        <td>${escapeHtml(toMoney(item.amount, item.currency))}</td>
-        <td>${escapeHtml(paymentPayerLabel(item))}</td>
-        <td>${escapeHtml(paymentDocumentLabel(item))}</td>
-        <td>${escapeHtml(item.print_job_id)}</td>
-        <td>${escapeHtml(item.device_code || "-")}</td>
-      </tr>
-    `).join("");
-    setRows(ui.paymentsBody, rows);
+    setRows(ui.paymentsBody, paymentRowsHtml(payload.items || []));
   }
 
   function incidentsQuery() {
@@ -464,7 +643,7 @@
       limit: ui.incidentsLimit.value || 50,
       escalated_only: ui.incidentsEscalatedOnly.value,
       method: ui.incidentsMethod.value,
-      device_code: ui.incidentsDeviceCode.value.trim(),
+      device_code: ui.incidentsDeviceCode.value.trim() || currentDeviceScope(),
     });
   }
 
@@ -488,7 +667,7 @@
       limit: ui.alertsLimit.value || 50,
       status: ui.alertsStatus.value,
       severity: ui.alertsSeverity.value,
-      device_code: ui.alertsDeviceCode.value.trim(),
+      device_code: ui.alertsDeviceCode.value.trim() || currentDeviceScope(),
     });
   }
 
@@ -507,7 +686,7 @@
   }
 
   async function loadReport() {
-    const payload = await call("/admin/reports/today", { method: "GET" });
+    const payload = await call(`/admin/reports/today?${queryString({ device_code: currentDeviceScope() })}`, { method: "GET" });
     const payments = payload.payments || {};
     const jobs = payload.jobs || {};
     const devices = payload.devices || {};
@@ -521,12 +700,59 @@
     ui.reportDevicesOnline.textContent = String(devices.online ?? 0);
   }
 
+  async function loadReportHistory() {
+    const payload = await call(`/admin/reports/history?${queryString({
+      days: Number(ui.reportHistoryDays.value || 90),
+      device_code: currentDeviceScope(),
+    })}`, { method: "GET" });
+    const rows = (payload.daily || []).map((item) => `
+      <tr>
+        <td>${escapeHtml(item.date || "-")}</td>
+        <td>${escapeHtml(`${item.payments_confirmed || 0}/${item.payments_total || 0}`)}</td>
+        <td>${escapeHtml(toMoney(item.confirmed_amount || 0, ui.pricingCurrency.value || "TZS"))}</td>
+        <td>${escapeHtml(`${item.jobs_printed || 0}/${item.jobs_total || 0}`)}</td>
+        <td>${escapeHtml(String(item.jobs_failed || 0))}</td>
+        <td>${escapeHtml(`${item.alerts_critical || 0}/${item.alerts_total || 0}`)}</td>
+      </tr>
+    `).join("");
+    setRows(ui.reportHistoryBody, rows);
+    const retention = payload.retention || {};
+    const candidates = retention.cleanup_candidates || {};
+    ui.reportRetentionPreview.textContent = [
+      `Retention: ${retention.days || 90} days`,
+      `Cutoff: ${formatDate(retention.cutoff_utc)}`,
+      `Old logs: ${candidates.logs ?? 0}`,
+      `Old resolved alerts: ${candidates.resolved_alerts ?? 0}`,
+      `Old print jobs: ${candidates.print_jobs ?? 0}`,
+      `Old payments: ${candidates.payments ?? 0}`,
+    ].join(" | ");
+  }
+
+  async function runReportCleanup(dryRun) {
+    const payload = await call(`/admin/reports/cleanup?${queryString({
+      retention_days: Number(ui.reportCleanupDays.value || 90),
+      dry_run: dryRun ? "true" : "false",
+      device_code: currentDeviceScope(),
+    })}`, { method: "POST" });
+    if (payload.status === "dry_run") {
+      const candidates = payload.delete_candidates || {};
+      setStatus(`Dry run: logs=${candidates.logs || 0}, resolved_alerts=${candidates.resolved_alerts || 0}`, "ok");
+      return;
+    }
+    const deleted = payload.deleted || {};
+    setStatus(`Cleanup complete: logs=${deleted.logs || 0}, resolved_alerts=${deleted.resolved_alerts || 0}`, "ok");
+  }
+
   async function loadPricing() {
     const payload = await call("/admin/pricing", { method: "GET" });
     ui.pricingBw.value = payload.bw_price_per_page;
     ui.pricingColor.value = payload.color_price_per_page;
     ui.pricingCurrency.value = payload.currency;
     ui.pricingPreview.textContent = `BW: ${payload.bw_price_per_page} ${payload.currency} | Color: ${payload.color_price_per_page} ${payload.currency}`;
+    if (!state.customerExperience) {
+      await loadCustomerExperience();
+    }
+    syncPricingCapabilitiesFromConfig();
   }
 
   async function savePricing() {
@@ -541,6 +767,16 @@
       body: JSON.stringify(body),
     });
     ui.pricingPreview.textContent = `BW: ${payload.bw_price_per_page} ${payload.currency} | Color: ${payload.color_price_per_page} ${payload.currency}`;
+    if (!state.customerExperience) {
+      await loadCustomerExperience();
+    }
+    const updatedConfig = applyPricingCapabilitiesToConfig(state.customerExperience || {});
+    const savedConfig = await call("/admin/customer-experience", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payload: updatedConfig }),
+    });
+    fillCustomerExperienceForm(savedConfig);
   }
 
   async function runReconcile() {
@@ -566,10 +802,13 @@
     const code = currentDeviceCode();
     const payload = await call(`/admin/customer-availability?${queryString({ device_code: code })}`, { method: "GET" });
     const availability = payload.availability || {};
+    const capabilities = payload.printer_capabilities || {};
     ui.customerAvailabilityPreview.textContent = [
       `Device: ${payload.device_code || "-"}`,
       `Upload: ${availability.can_upload ? "enabled" : "blocked"}`,
       `Payment: ${availability.can_pay ? "enabled" : "blocked"}`,
+      `Color: ${capabilities.color_enabled ? "enabled" : "disabled"}`,
+      `A3: ${capabilities.a3_enabled ? "enabled" : "disabled"}`,
       `Reason: ${availability.reason_code || "-"}`,
       `Message: ${availability.message || "-"}`,
     ].join(" | ");
@@ -599,9 +838,9 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (action === "pause_kiosk" || action === "resume_kiosk") {
+    if (action === "pause_kiosk" || action === "resume_kiosk" || action === "apply_hotspot" || action === "disable_hotspot") {
       await loadCustomerExperience();
-      await loadCustomerAvailability();
+      await Promise.all([loadCustomerAvailability(), loadQrPack()]);
     }
     return result;
   }
@@ -678,6 +917,15 @@
   async function refreshAll() {
     setStatus("Refreshing dashboard...", "");
     try {
+      await loadDeviceOptions();
+      await loadCustomerExperience();
+      if (!state.selectedDeviceCode) {
+        const active = String(state.customerExperience?.active_device_code || "").trim();
+        if (active && state.knownDevices.some((item) => item.device_code === active)) {
+          state.selectedDeviceCode = active;
+          ui.globalDeviceSelector.value = active;
+        }
+      }
       await Promise.all([
         loadOverview(),
         loadDevices(),
@@ -685,8 +933,8 @@
         loadIncidents(),
         loadAlerts(),
         loadReport(),
+        loadReportHistory(),
         loadPricing(),
-        loadCustomerExperience(),
         loadCustomerAvailability(),
         loadQrPack(),
         loadRefunds(),
@@ -703,10 +951,50 @@
         showView(tab.dataset.view);
       });
     });
+    document.querySelectorAll(".tab-jump").forEach((button) => {
+      button.addEventListener("click", () => {
+        const view = button.getAttribute("data-go-view");
+        if (!view) return;
+        showView(view);
+      });
+    });
   }
 
   function bindEvents() {
     ui.refreshAllBtn.addEventListener("click", refreshAll);
+
+    ui.globalDeviceReloadBtn.addEventListener("click", async () => {
+      try {
+        await loadDeviceOptions();
+        await Promise.all([loadOverview(), loadPayments(), loadIncidents(), loadAlerts(), loadReport(), loadReportHistory()]);
+        setStatus("Device scope list refreshed.", "ok");
+      } catch (err) {
+        setStatus(`Device scope refresh failed: ${err.message}`, "bad");
+      }
+    });
+    ui.globalDeviceSelector.addEventListener("change", async () => {
+      state.selectedDeviceCode = String(ui.globalDeviceSelector.value || "").trim();
+      if (state.selectedDeviceCode) {
+        ui.deviceActionDeviceCode.value = state.selectedDeviceCode;
+      }
+      updatePricingCapabilityPreview();
+      try {
+        await Promise.all([
+          loadOverview(),
+          loadPayments(),
+          loadIncidents(),
+          loadAlerts(),
+          loadReport(),
+          loadReportHistory(),
+          loadCustomerAvailability(),
+          loadQrPack(),
+        ]);
+        syncPricingCapabilitiesFromConfig();
+        setStatus("Device scope changed.", "ok");
+      } catch (err) {
+        setStatus(`Failed to apply device scope: ${err.message}`, "bad");
+      }
+    });
 
     ui.devicesIncludeInactive.addEventListener("change", async () => {
       try {
@@ -791,20 +1079,59 @@
         setStatus(`Report reload failed: ${err.message}`, "bad");
       }
     });
+    ui.reportHistoryReloadBtn.addEventListener("click", async () => {
+      try {
+        await loadReportHistory();
+        setStatus("Report history reloaded.", "ok");
+      } catch (err) {
+        setStatus(`Report history load failed: ${err.message}`, "bad");
+      }
+    });
+    ui.reportHistoryFilters.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        await loadReportHistory();
+        setStatus("Report history filters applied.", "ok");
+      } catch (err) {
+        setStatus(`Report history filters failed: ${err.message}`, "bad");
+      }
+    });
+    ui.reportCleanupDryRunBtn.addEventListener("click", async () => {
+      try {
+        await runReportCleanup(true);
+        await loadReportHistory();
+      } catch (err) {
+        setStatus(`Retention dry run failed: ${err.message}`, "bad");
+      }
+    });
+    ui.reportCleanupRunBtn.addEventListener("click", async () => {
+      const confirmed = window.confirm("Run cleanup now? This removes old logs and resolved alerts based on retention days.");
+      if (!confirmed) return;
+      try {
+        await runReportCleanup(false);
+        await loadReportHistory();
+      } catch (err) {
+        setStatus(`Retention cleanup failed: ${err.message}`, "bad");
+      }
+    });
 
     ui.pricingReloadBtn.addEventListener("click", async () => {
       try {
         await loadPricing();
-        setStatus("Pricing reloaded.", "ok");
+        setStatus("Pricing and capabilities reloaded.", "ok");
       } catch (err) {
         setStatus(`Pricing reload failed: ${err.message}`, "bad");
       }
+    });
+    [ui.pricingSupportsColor, ui.pricingSupportsA3, ui.pricingBwOnly, ui.pricingA4Only].forEach((el) => {
+      el.addEventListener("change", updatePricingCapabilityPreview);
     });
     ui.pricingForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       try {
         await savePricing();
-        setStatus("Pricing saved successfully.", "ok");
+        await Promise.all([loadOverview(), loadDevices(), loadCustomerAvailability()]);
+        setStatus("Pricing and capability controls saved.", "ok");
       } catch (err) {
         setStatus(`Pricing save failed: ${err.message}`, "bad");
       }
@@ -827,11 +1154,22 @@
         setStatus(`Customer availability refresh failed: ${err.message}`, "bad");
       }
     });
+    ui.kioskSubtabSelect.addEventListener("change", () => {
+      showKioskPanel(ui.kioskSubtabSelect.value);
+    });
+    ui.cxActiveDeviceCode.addEventListener("change", () => {
+      const activeCode = String(ui.cxActiveDeviceCode.value || "").trim() || "pi-kiosk-001";
+      ui.deviceActionDeviceCode.value = activeCode;
+      ui.paymentsDeviceCode.placeholder = activeCode;
+      ui.incidentsDeviceCode.placeholder = activeCode;
+      ui.alertsDeviceCode.placeholder = activeCode;
+      syncPricingCapabilitiesFromConfig();
+    });
     ui.customerExperienceForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       try {
         await saveCustomerExperience();
-        await Promise.all([loadCustomerAvailability(), loadQrPack()]);
+        await Promise.all([loadCustomerAvailability(), loadQrPack(), loadPricing()]);
         setStatus("Customer controls saved.", "ok");
       } catch (err) {
         setStatus(`Save customer controls failed: ${err.message}`, "bad");
@@ -855,6 +1193,14 @@
     });
     ui.actionResumeKioskBtn.addEventListener("click", () => {
       handleDeviceAction(ui.actionResumeKioskBtn, "resume_kiosk", "Kiosk resumed.");
+    });
+    ui.actionApplyHotspotBtn.addEventListener("click", () => {
+      handleDeviceAction(ui.actionApplyHotspotBtn, "apply_hotspot", "Hotspot apply command sent.");
+    });
+    ui.actionDisableHotspotBtn.addEventListener("click", () => {
+      const confirmed = window.confirm("Disable hotspot mode and return to regular Wi-Fi mode?");
+      if (!confirmed) return;
+      handleDeviceAction(ui.actionDisableHotspotBtn, "disable_hotspot", "Hotspot disable command sent.");
     });
     ui.actionRestartAgentBtn.addEventListener("click", () => {
       handleDeviceAction(ui.actionRestartAgentBtn, "restart_agent", "Agent restart command sent.");
@@ -951,6 +1297,7 @@
     bindTabs();
     bindEvents();
     showView("overview");
+    showKioskPanel("experience");
     await refreshAll();
   }
 

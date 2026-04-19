@@ -10,6 +10,7 @@ class PrintJobCreateRequest(BaseModel):
     copies: int = Field(..., gt=0, le=500)
     color: str
     page_selection: str = "all"
+    paper_size: str = "a4"
     range_start_page: int | None = Field(default=None, ge=1, le=2000)
     range_end_page: int | None = Field(default=None, ge=1, le=2000)
     device_code: str = "prototype-local"
@@ -34,6 +35,14 @@ class PrintJobCreateRequest(BaseModel):
         normalized = value.strip().lower()
         if normalized not in {"all", "range"}:
             raise ValueError("page_selection must be 'all' or 'range'.")
+        return normalized
+
+    @field_validator("paper_size")
+    @classmethod
+    def validate_paper_size(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"a4", "a3"}:
+            raise ValueError("paper_size must be 'a4' or 'a3'.")
         return normalized
 
     @field_validator("device_code")

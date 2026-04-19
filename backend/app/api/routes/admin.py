@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
-from sqlalchemy import case, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -11,12 +13,13 @@ from app.core.config import settings
 from app.models.alert import Alert
 from app.models.device import Device
 from app.models.log import LogEntry
-from app.models.enums import AlertStatus, DeviceStatus, JobStatus, PaymentMethod, PaymentStatus
+from app.models.enums import AlertSeverity, AlertStatus, DeviceStatus, JobStatus, PaymentMethod, PaymentStatus
 from app.models.payment import Payment
 from app.models.print_job import PrintJob
 from app.services.customer_experience import (
     evaluate_customer_availability,
     get_customer_experience_config,
+    resolve_printer_capabilities,
     save_customer_experience_config,
 )
 from app.services.device_actions import execute_local_device_action
@@ -29,6 +32,11 @@ from app.services.refund_workflow import (
     list_refund_requests,
     reject_refund_request,
 )
+
+try:
+    import qrcode
+except Exception:  # pragma: no cover - optional dependency for runtime
+    qrcode = None
 
 router = APIRouter()
 
@@ -235,6 +243,145 @@ def _build_pending_incident_item(
     }
 
 
+def _normalize_device_code(device_code: str | None) -> str | None:
+    normalized = str(device_code or "").strip()
+    return normalized or None
+
+
+def _parse_datetime(value: object | None) -> datetime | None:
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+    else:
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _estimate_uptime_hours(device: Device, now_utc: datetime) -> float:
+    metadata = device.metadata_json if isinstance(device.metadata_json, dict) else {}
+
+    for key in ("uptime_seconds", "uptime_sec", "agent_uptime_seconds"):
+        raw_value = metadata.get(key)
+        try:
+            seconds = float(raw_value)
+        except (TypeError, ValueError):
+            continue
+        if seconds > 0:
+            return round(seconds / 3600.0, 2)
+
+    started_at = None
+    for key in ("agent_started_at", "boot_at", "boot_time", "uptime_started_at"):
+        started_at = _parse_datetime(metadata.get(key))
+        if started_at is not None:
+            break
+
+    if started_at is None:
+        started_at = device.created_at
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        else:
+            started_at = started_at.astimezone(timezone.utc)
+
+    hours = max(0.0, (now_utc - started_at).total_seconds() / 3600.0)
+    return round(hours, 2)
+
+
+def _build_device_monitor(db: Session, device_code: str | None) -> dict[str, Any]:
+    now_utc = datetime.now(timezone.utc)
+    since_24h_utc = now_utc - timedelta(hours=24)
+    selected_device = _normalize_device_code(device_code)
+
+    device_query = select(Device).where(Device.is_active.is_(True))
+    if selected_device is not None:
+        device_query = device_query.where(Device.device_code == selected_device)
+    devices = db.execute(
+        device_query.order_by(Device.last_seen_at.desc().nullslast(), Device.created_at.desc())
+    ).scalars().all()
+
+    items: list[dict[str, Any]] = []
+    total_uptime = 0.0
+    total_errors_24h = 0
+    total_active_alerts = 0
+    online_count = 0
+
+    for device in devices:
+        uptime_hours = _estimate_uptime_hours(device, now_utc=now_utc)
+        if device.status == DeviceStatus.online:
+            online_count += 1
+
+        active_alerts = (
+            db.execute(
+                select(func.count(Alert.id)).where(
+                    Alert.device_id == device.id,
+                    Alert.status == AlertStatus.active,
+                )
+            ).scalar_one()
+            or 0
+        )
+        alerts_24h = (
+            db.execute(
+                select(func.count(Alert.id)).where(
+                    Alert.device_id == device.id,
+                    Alert.last_seen_at >= since_24h_utc,
+                    Alert.severity.in_([AlertSeverity.warning, AlertSeverity.critical]),
+                )
+            ).scalar_one()
+            or 0
+        )
+        failed_jobs_24h = (
+            db.execute(
+                select(func.count(PrintJob.id)).where(
+                    PrintJob.device_id == device.id,
+                    PrintJob.status == JobStatus.failed,
+                    PrintJob.created_at >= since_24h_utc,
+                )
+            ).scalar_one()
+            or 0
+        )
+
+        error_events_24h = int(alerts_24h) + int(failed_jobs_24h)
+        total_uptime += float(uptime_hours)
+        total_errors_24h += error_events_24h
+        total_active_alerts += int(active_alerts)
+
+        items.append(
+            {
+                "device_code": device.device_code,
+                "status": device.status.value,
+                "printer_status": device.printer_status.value,
+                "last_seen_at": device.last_seen_at,
+                "uptime_hours": float(uptime_hours),
+                "active_alerts": int(active_alerts),
+                "failed_jobs_24h": int(failed_jobs_24h),
+                "error_events_24h": int(error_events_24h),
+            }
+        )
+
+    count = len(items)
+    return {
+        "device_count": count,
+        "summary": {
+            "avg_uptime_hours": round(total_uptime / count, 2) if count > 0 else 0.0,
+            "total_error_events_24h": int(total_errors_24h),
+            "total_active_alerts": int(total_active_alerts),
+            "online_devices": int(online_count),
+        },
+        "devices": items,
+    }
+
+
 def _resolve_customer_device(db: Session, explicit_device_code: str | None = None) -> Device | None:
     config = get_customer_experience_config()
     selected_device_code = (explicit_device_code or config.get("active_device_code") or "").strip()
@@ -311,6 +458,7 @@ def admin_devices(
     if not include_inactive:
         query = query.where(Device.is_active.is_(True))
 
+    config = get_customer_experience_config()
     devices = db.execute(query).scalars().all()
     items: list[dict[str, object | None]] = []
 
@@ -355,6 +503,7 @@ def admin_devices(
                 "public_ip": device.public_ip,
                 "agent_version": device.agent_version,
                 "firmware_version": device.firmware_version,
+                "printer_capabilities": resolve_printer_capabilities(config=config, device_code=device.device_code),
                 "active_alerts": int(active_alerts),
                 "jobs": {
                     "total": int(job_counts_row.total_jobs or 0),
@@ -492,18 +641,20 @@ def admin_pending_payment_incidents(
 
 @router.get("/dashboard/snapshot")
 def admin_dashboard_snapshot(
-    recent_payments_limit: int = Query(default=10, ge=1, le=50),
+    recent_payments_limit: int = Query(default=50, ge=1, le=200),
     pending_incidents_limit: int = Query(default=25, ge=1, le=200),
+    device_code: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    selected_device = _normalize_device_code(device_code)
     generated_at_utc = datetime.now(timezone.utc)
-    report = admin_report_today(db=db)
+    report = admin_report_today(device_code=selected_device, db=db)
     recent_payments = admin_payments(
         limit=recent_payments_limit,
         payment_status=None,
         method=None,
         provider=None,
-        device_code=None,
+        device_code=selected_device,
         lifecycle=None,
         db=db,
     )
@@ -511,13 +662,15 @@ def admin_dashboard_snapshot(
         limit=pending_incidents_limit,
         escalated_only=False,
         method=None,
-        device_code=None,
+        device_code=selected_device,
         db=db,
     )
+    monitor = _build_device_monitor(db=db, device_code=selected_device)
     pricing = get_pricing_config()
 
     return {
         "generated_at_utc": generated_at_utc,
+        "device_code": selected_device,
         "window": report["window"],
         "kpis": {
             "confirmed_payments_today": report["payments"]["confirmed"],
@@ -530,6 +683,7 @@ def admin_dashboard_snapshot(
             "escalated_pending_incidents": pending_incidents["escalated_count"],
         },
         "report_today": report,
+        "monitor": monitor,
         "pricing": pricing,
         "pending_incidents": pending_incidents,
         "recent_payments": {
@@ -581,16 +735,44 @@ def admin_customer_availability(
     device = _resolve_customer_device(db, device_code)
     availability = evaluate_customer_availability(device=device, config=config)
     selected_device_code = device.device_code if device else str(config.get("active_device_code") or "")
+    printer_capabilities = resolve_printer_capabilities(config=config, device_code=selected_device_code)
     return {
         "device_code": selected_device_code,
         "availability": availability,
         "operations": config.get("operations", {}),
+        "printer_capabilities": printer_capabilities,
     }
 
 
 @router.get("/devices/{device_code}/qr-pack")
 def admin_device_qr_pack(device_code: str, db: Session = Depends(get_db)) -> dict[str, Any]:
     return _build_qr_pack(db, explicit_device_code=device_code)
+
+
+@router.get("/qr-code")
+def admin_qr_code_image(
+    data: str = Query(..., min_length=1, max_length=2000),
+    box_size: int = Query(default=8, ge=2, le=16),
+) -> Response:
+    if qrcode is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="QR image generator dependency is not installed on this backend.",
+        )
+
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=box_size,
+        border=2,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+
+    image = qr.make_image(fill_color="black", back_color="white")
+    out = BytesIO()
+    image.save(out, format="PNG")
+    return Response(content=out.getvalue(), media_type="image/png")
 
 
 @router.post("/devices/{device_code}/actions")
@@ -646,7 +828,14 @@ def admin_device_action(
         action=action,
         sudo_password=payload.sudo_password,
         confirm_reboot=payload.confirm_reboot,
+        hotspot_config=get_customer_experience_config().get("hotspot") if action == "apply_hotspot" else None,
     )
+    if action in {"apply_hotspot", "disable_hotspot"} and result["ok"]:
+        config = get_customer_experience_config()
+        hotspot_cfg = config.get("hotspot", {})
+        hotspot_cfg["enabled"] = action == "apply_hotspot"
+        config["hotspot"] = hotspot_cfg
+        save_customer_experience_config(config)
     db.add(
         LogEntry(
             device_id=device.id,
@@ -739,12 +928,16 @@ def admin_execute_refund(
 
 
 @router.get("/reports/today")
-def admin_report_today(db: Session = Depends(get_db)) -> dict[str, Any]:
+def admin_report_today(
+    device_code: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    selected_device = _normalize_device_code(device_code)
     now_utc = datetime.now(timezone.utc)
     day_start_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
     day_end_utc = day_start_utc + timedelta(days=1)
 
-    payments_row = db.execute(
+    payments_stmt = (
         select(
             func.count(Payment.id).label("total"),
             func.sum(case((Payment.status == PaymentStatus.confirmed, 1), else_=0)).label("confirmed"),
@@ -755,10 +948,19 @@ def admin_report_today(db: Session = Depends(get_db)) -> dict[str, Any]:
                 func.sum(case((Payment.status == PaymentStatus.confirmed, Payment.amount), else_=0)),
                 0,
             ).label("confirmed_amount"),
-        ).where(Payment.requested_at >= day_start_utc, Payment.requested_at < day_end_utc)
-    ).one()
+        )
+        .select_from(Payment)
+        .where(Payment.requested_at >= day_start_utc, Payment.requested_at < day_end_utc)
+    )
+    if selected_device is not None:
+        payments_stmt = (
+            payments_stmt.join(PrintJob, PrintJob.id == Payment.print_job_id)
+            .join(Device, Device.id == PrintJob.device_id)
+            .where(Device.device_code == selected_device)
+        )
+    payments_row = db.execute(payments_stmt).one()
 
-    jobs_row = db.execute(
+    jobs_stmt = (
         select(
             func.count(PrintJob.id).label("total"),
             func.sum(case((PrintJob.status == JobStatus.awaiting_payment, 1), else_=0)).label("awaiting_payment"),
@@ -770,19 +972,32 @@ def admin_report_today(db: Session = Depends(get_db)) -> dict[str, Any]:
                     else_=0,
                 )
             ).label("in_progress"),
-        ).where(PrintJob.created_at >= day_start_utc, PrintJob.created_at < day_end_utc)
-    ).one()
+        )
+        .select_from(PrintJob)
+        .where(PrintJob.created_at >= day_start_utc, PrintJob.created_at < day_end_utc)
+    )
+    if selected_device is not None:
+        jobs_stmt = jobs_stmt.join(Device, Device.id == PrintJob.device_id).where(Device.device_code == selected_device)
+    jobs_row = db.execute(jobs_stmt).one()
 
-    devices_row = db.execute(
+    devices_stmt = (
         select(
             func.sum(case((Device.is_active.is_(True), 1), else_=0)).label("active"),
             func.sum(case((Device.status == DeviceStatus.online, 1), else_=0)).label("online"),
         )
-    ).one()
+        .select_from(Device)
+    )
+    if selected_device is not None:
+        devices_stmt = devices_stmt.where(Device.device_code == selected_device)
+    devices_row = db.execute(devices_stmt).one()
 
-    active_alerts = db.execute(select(func.count(Alert.id)).where(Alert.status == AlertStatus.active)).scalar_one() or 0
+    alerts_stmt = select(func.count(Alert.id)).where(Alert.status == AlertStatus.active)
+    if selected_device is not None:
+        alerts_stmt = alerts_stmt.join(Device, Device.id == Alert.device_id).where(Device.device_code == selected_device)
+    active_alerts = db.execute(alerts_stmt).scalar_one() or 0
 
     return {
+        "device_code": selected_device,
         "window": {
             "start_utc": day_start_utc,
             "end_utc": day_end_utc,
@@ -808,6 +1023,207 @@ def admin_report_today(db: Session = Depends(get_db)) -> dict[str, Any]:
         },
         "alerts": {
             "active": int(active_alerts),
+        },
+    }
+
+
+@router.get("/reports/history")
+def admin_report_history(
+    days: int = Query(default=90, ge=30, le=180),
+    device_code: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    selected_device = _normalize_device_code(device_code)
+    now_utc = datetime.now(timezone.utc)
+    window_start_utc = (now_utc - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    window_end_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    retention_days = 90
+    retention_cutoff_utc = now_utc - timedelta(days=retention_days)
+
+    payments_stmt = (
+        select(
+            func.date_trunc("day", Payment.requested_at).label("day"),
+            func.count(Payment.id).label("total"),
+            func.sum(case((Payment.status == PaymentStatus.confirmed, 1), else_=0)).label("confirmed"),
+            func.coalesce(
+                func.sum(case((Payment.status == PaymentStatus.confirmed, Payment.amount), else_=0)),
+                0,
+            ).label("confirmed_amount"),
+        )
+        .select_from(Payment)
+        .where(Payment.requested_at >= window_start_utc, Payment.requested_at < window_end_utc)
+    )
+    if selected_device is not None:
+        payments_stmt = (
+            payments_stmt.join(PrintJob, PrintJob.id == Payment.print_job_id)
+            .join(Device, Device.id == PrintJob.device_id)
+            .where(Device.device_code == selected_device)
+        )
+    payments_rows = db.execute(payments_stmt.group_by("day").order_by("day")).all()
+
+    jobs_stmt = (
+        select(
+            func.date_trunc("day", PrintJob.created_at).label("day"),
+            func.count(PrintJob.id).label("total"),
+            func.sum(case((PrintJob.status == JobStatus.printed, 1), else_=0)).label("printed"),
+            func.sum(case((PrintJob.status == JobStatus.failed, 1), else_=0)).label("failed"),
+        )
+        .select_from(PrintJob)
+        .where(PrintJob.created_at >= window_start_utc, PrintJob.created_at < window_end_utc)
+    )
+    if selected_device is not None:
+        jobs_stmt = jobs_stmt.join(Device, Device.id == PrintJob.device_id).where(Device.device_code == selected_device)
+    jobs_rows = db.execute(jobs_stmt.group_by("day").order_by("day")).all()
+
+    alerts_stmt = (
+        select(
+            func.date_trunc("day", Alert.last_seen_at).label("day"),
+            func.count(Alert.id).label("total"),
+            func.sum(case((Alert.severity == AlertSeverity.critical, 1), else_=0)).label("critical"),
+            func.sum(case((Alert.status == AlertStatus.active, 1), else_=0)).label("active"),
+        )
+        .select_from(Alert)
+        .where(Alert.last_seen_at >= window_start_utc, Alert.last_seen_at < window_end_utc)
+    )
+    if selected_device is not None:
+        alerts_stmt = alerts_stmt.join(Device, Device.id == Alert.device_id).where(Device.device_code == selected_device)
+    alerts_rows = db.execute(alerts_stmt.group_by("day").order_by("day")).all()
+
+    series: dict[str, dict[str, Any]] = {}
+    for index in range(days):
+        point_day = window_start_utc + timedelta(days=index)
+        key = point_day.date().isoformat()
+        series[key] = {
+            "date": key,
+            "payments_total": 0,
+            "payments_confirmed": 0,
+            "confirmed_amount": 0.0,
+            "jobs_total": 0,
+            "jobs_printed": 0,
+            "jobs_failed": 0,
+            "alerts_total": 0,
+            "alerts_critical": 0,
+            "alerts_active": 0,
+        }
+
+    for day, total, confirmed, confirmed_amount in payments_rows:
+        key = day.date().isoformat()
+        if key not in series:
+            continue
+        series[key]["payments_total"] = int(total or 0)
+        series[key]["payments_confirmed"] = int(confirmed or 0)
+        series[key]["confirmed_amount"] = float(confirmed_amount or 0)
+
+    for day, total, printed, failed in jobs_rows:
+        key = day.date().isoformat()
+        if key not in series:
+            continue
+        series[key]["jobs_total"] = int(total or 0)
+        series[key]["jobs_printed"] = int(printed or 0)
+        series[key]["jobs_failed"] = int(failed or 0)
+
+    for day, total, critical, active in alerts_rows:
+        key = day.date().isoformat()
+        if key not in series:
+            continue
+        series[key]["alerts_total"] = int(total or 0)
+        series[key]["alerts_critical"] = int(critical or 0)
+        series[key]["alerts_active"] = int(active or 0)
+
+    logs_old_stmt = select(func.count(LogEntry.id)).where(LogEntry.created_at < retention_cutoff_utc)
+    resolved_alerts_old_stmt = select(func.count(Alert.id)).where(
+        Alert.status == AlertStatus.resolved,
+        Alert.last_seen_at < retention_cutoff_utc,
+    )
+    jobs_old_stmt = select(func.count(PrintJob.id)).where(PrintJob.created_at < retention_cutoff_utc)
+    payments_old_stmt = select(func.count(Payment.id)).where(Payment.requested_at < retention_cutoff_utc)
+
+    if selected_device is not None:
+        logs_old_stmt = logs_old_stmt.join(Device, Device.id == LogEntry.device_id).where(Device.device_code == selected_device)
+        resolved_alerts_old_stmt = resolved_alerts_old_stmt.join(Device, Device.id == Alert.device_id).where(
+            Device.device_code == selected_device
+        )
+        jobs_old_stmt = jobs_old_stmt.join(Device, Device.id == PrintJob.device_id).where(Device.device_code == selected_device)
+        payments_old_stmt = (
+            payments_old_stmt.join(PrintJob, PrintJob.id == Payment.print_job_id)
+            .join(Device, Device.id == PrintJob.device_id)
+            .where(Device.device_code == selected_device)
+        )
+
+    return {
+        "device_code": selected_device,
+        "window": {
+            "days": days,
+            "start_utc": window_start_utc,
+            "end_utc": window_end_utc,
+        },
+        "retention": {
+            "days": retention_days,
+            "cutoff_utc": retention_cutoff_utc,
+            "cleanup_candidates": {
+                "logs": int(db.execute(logs_old_stmt).scalar_one() or 0),
+                "resolved_alerts": int(db.execute(resolved_alerts_old_stmt).scalar_one() or 0),
+                "print_jobs": int(db.execute(jobs_old_stmt).scalar_one() or 0),
+                "payments": int(db.execute(payments_old_stmt).scalar_one() or 0),
+            },
+            "cleanup_scope": [
+                "Logs and resolved alerts can be cleaned up safely from admin panel.",
+                "Payments and print jobs are audit-critical and should be archived before deletion.",
+            ],
+        },
+        "daily": [series[key] for key in sorted(series.keys())],
+    }
+
+
+@router.post("/reports/cleanup")
+def admin_cleanup_reports_data(
+    retention_days: int = Query(default=90, ge=30, le=365),
+    dry_run: bool = Query(default=False),
+    device_code: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    selected_device = _normalize_device_code(device_code)
+    cutoff_utc = datetime.now(timezone.utc) - timedelta(days=retention_days)
+
+    log_filter = [LogEntry.created_at < cutoff_utc]
+    alert_filter = [
+        Alert.status == AlertStatus.resolved,
+        Alert.last_seen_at < cutoff_utc,
+    ]
+
+    if selected_device is not None:
+        device_id = db.execute(select(Device.id).where(Device.device_code == selected_device)).scalar_one_or_none()
+        if device_id is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found for cleanup scope.")
+        log_filter.append(LogEntry.device_id == device_id)
+        alert_filter.append(Alert.device_id == device_id)
+
+    logs_count = int(db.execute(select(func.count(LogEntry.id)).where(*log_filter)).scalar_one() or 0)
+    alerts_count = int(db.execute(select(func.count(Alert.id)).where(*alert_filter)).scalar_one() or 0)
+
+    if dry_run:
+        return {
+            "status": "dry_run",
+            "device_code": selected_device,
+            "retention_days": retention_days,
+            "cutoff_utc": cutoff_utc,
+            "delete_candidates": {
+                "logs": logs_count,
+                "resolved_alerts": alerts_count,
+            },
+        }
+
+    logs_deleted = db.execute(delete(LogEntry).where(*log_filter)).rowcount or 0
+    alerts_deleted = db.execute(delete(Alert).where(*alert_filter)).rowcount or 0
+    db.commit()
+    return {
+        "status": "ok",
+        "device_code": selected_device,
+        "retention_days": retention_days,
+        "cutoff_utc": cutoff_utc,
+        "deleted": {
+            "logs": int(logs_deleted),
+            "resolved_alerts": int(alerts_deleted),
         },
     }
 

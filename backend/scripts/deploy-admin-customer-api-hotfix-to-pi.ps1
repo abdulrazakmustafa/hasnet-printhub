@@ -39,7 +39,8 @@ $filesToUpload = @(
     @{ Local = (Join-Path $backendDir "app\static\admin_app\styles.css"); Remote = "$RemoteBackendDir/app/static/admin_app/styles.css" },
     @{ Local = (Join-Path $backendDir "app\static\customer_app\index.html"); Remote = "$RemoteBackendDir/app/static/customer_app/index.html" },
     @{ Local = (Join-Path $backendDir "app\static\customer_app\app.js"); Remote = "$RemoteBackendDir/app/static/customer_app/app.js" },
-    @{ Local = (Join-Path $backendDir "app\static\customer_app\styles.css"); Remote = "$RemoteBackendDir/app/static/customer_app/styles.css" }
+    @{ Local = (Join-Path $backendDir "app\static\customer_app\styles.css"); Remote = "$RemoteBackendDir/app/static/customer_app/styles.css" },
+    @{ Local = (Join-Path $backendDir "requirements.txt"); Remote = "$RemoteBackendDir/requirements.txt" }
 )
 
 foreach ($entry in $filesToUpload) {
@@ -55,6 +56,12 @@ foreach ($entry in $filesToUpload) {
 }
 
 Write-Host "Restarting backend service on Pi (sudo may prompt for password) ..." -ForegroundColor Cyan
+Write-Host "Installing backend requirements on Pi ..." -ForegroundColor Cyan
+& ssh -tt $target "$RemoteBackendDir/.venv/bin/python -m pip install -r $RemoteBackendDir/requirements.txt"
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to install backend requirements on Pi."
+}
+
 & ssh -tt $target "sudo systemctl restart hasnet-printhub-api; sudo systemctl is-active hasnet-printhub-api"
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to restart hasnet-printhub-api."

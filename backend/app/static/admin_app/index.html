@@ -19,19 +19,26 @@
         </div>
       </div>
       <div class="brand-actions">
+        <label class="header-select">
+          Active Device Scope
+          <select id="globalDeviceSelector">
+            <option value="">All devices</option>
+          </select>
+        </label>
+        <button id="globalDeviceReloadBtn" type="button" class="ghost">Reload Devices</button>
         <button id="refreshAllBtn" type="button">Refresh All</button>
       </div>
     </header>
 
     <nav class="tabs" id="tabs">
-      <button data-view="overview" class="tab active" type="button">Overview</button>
-      <button data-view="devices" class="tab" type="button">Devices</button>
-      <button data-view="payments" class="tab" type="button">Payments</button>
-      <button data-view="incidents" class="tab" type="button">Incidents</button>
-      <button data-view="reports" class="tab" type="button">Reports</button>
-      <button data-view="pricing" class="tab" type="button">Pricing</button>
-      <button data-view="kiosk" class="tab" type="button">Kiosk Controls</button>
-      <button data-view="refunds" class="tab" type="button">Refunds</button>
+      <button data-view="overview" class="tab active" type="button"><span class="tab-icon">▦</span>Overview</button>
+      <button data-view="devices" class="tab" type="button"><span class="tab-icon">▣</span>Devices</button>
+      <button data-view="payments" class="tab" type="button"><span class="tab-icon">¤</span>Payments</button>
+      <button data-view="incidents" class="tab" type="button"><span class="tab-icon">⌁</span>Incidents</button>
+      <button data-view="reports" class="tab" type="button"><span class="tab-icon">◷</span>Reports</button>
+      <button data-view="pricing" class="tab" type="button"><span class="tab-icon">⧉</span>Pricing</button>
+      <button data-view="kiosk" class="tab" type="button"><span class="tab-icon">⌂</span>Kiosk Controls</button>
+      <button data-view="refunds" class="tab" type="button"><span class="tab-icon">↺</span>Refunds</button>
     </nav>
 
     <section class="view active" data-view-panel="overview">
@@ -40,47 +47,50 @@
         <article class="kpi"><p>Confirmed Amount</p><strong id="kpiConfirmedAmount">-</strong></article>
         <article class="kpi"><p>Printed Jobs Today</p><strong id="kpiPrintedJobs">-</strong></article>
         <article class="kpi"><p>Active Devices</p><strong id="kpiActiveDevices">-</strong></article>
-        <article class="kpi"><p>Pending Incidents</p><strong id="kpiPendingIncidents">-</strong></article>
-        <article class="kpi"><p>Escalated Incidents</p><strong id="kpiEscalatedIncidents">-</strong></article>
+        <article class="kpi"><p>Average Uptime (hrs)</p><strong id="kpiAvgUptimeHours">-</strong></article>
+        <article class="kpi"><p>Error Events (24h)</p><strong id="kpiErrorEvents24h">-</strong></article>
       </div>
+      <article class="card quick-actions-card">
+        <div class="card-header">
+          <h2><span class="title-icon">◆</span>Quick Actions</h2>
+        </div>
+        <div class="inline-actions">
+          <button class="tab-jump" data-go-view="devices" type="button">Device Health</button>
+          <button class="tab-jump" data-go-view="kiosk" type="button">Kiosk Controls</button>
+          <button class="tab-jump" data-go-view="payments" type="button">Payment Monitor</button>
+          <button class="tab-jump" data-go-view="incidents" type="button">Incident Desk</button>
+        </div>
+      </article>
 
-      <div class="grid-two">
-        <article class="card">
-          <h2>Recent Payments</h2>
+      <article class="card">
+        <div class="card-header">
+          <h2><span class="title-icon">◴</span>Live Device Monitor</h2>
+        </div>
+        <div id="overviewDeviceMonitor" class="monitor-grid"></div>
+      </article>
+
+      <article class="card">
+          <h2><span class="title-icon">¤</span>Payment Records (Same View as Payments Tab)</h2>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Requested</th>
+                  <th>Provider Ref</th>
                   <th>Method</th>
                   <th>Status</th>
+                  <th>Lifecycle</th>
                   <th>Amount</th>
+                  <th>Payer</th>
+                  <th>Document</th>
+                  <th>Job</th>
                   <th>Device</th>
                 </tr>
               </thead>
               <tbody id="overviewRecentPaymentsBody"></tbody>
             </table>
           </div>
-        </article>
-
-        <article class="card">
-          <h2>Pending Incidents</h2>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Provider Ref</th>
-                  <th>Method</th>
-                  <th>Pending (min)</th>
-                  <th>Escalated</th>
-                  <th>Device</th>
-                </tr>
-              </thead>
-              <tbody id="overviewIncidentsBody"></tbody>
-            </table>
-          </div>
-        </article>
-      </div>
+      </article>
     </section>
 
     <section class="view" data-view-panel="devices">
@@ -100,6 +110,7 @@
                 <th>Site</th>
                 <th>Status</th>
                 <th>Printer</th>
+                <th>Capabilities</th>
                 <th>Last Seen</th>
                 <th>Alerts</th>
                 <th>Jobs</th>
@@ -281,7 +292,7 @@
     <section class="view" data-view-panel="reports">
       <article class="card">
         <div class="card-header">
-          <h2>Today Report</h2>
+          <h2><span class="title-icon">◷</span>Today Report</h2>
           <button id="reportsReloadBtn" type="button">Reload Report</button>
         </div>
         <div class="kpi-grid small">
@@ -295,12 +306,47 @@
           <article class="kpi"><p>Online Devices</p><strong id="reportDevicesOnline">-</strong></article>
         </div>
       </article>
+
+      <article class="card">
+        <div class="card-header">
+          <h2><span class="title-icon">▤</span>3-Month Report History</h2>
+          <div class="inline-actions">
+            <button id="reportHistoryReloadBtn" type="button">Reload History</button>
+            <button id="reportCleanupDryRunBtn" type="button" class="ghost">Retention Dry Run</button>
+          </div>
+        </div>
+        <form id="reportHistoryFilters" class="filters">
+          <label>Days
+            <input id="reportHistoryDays" type="number" min="30" max="180" value="90">
+          </label>
+          <label>Cleanup Retention (days)
+            <input id="reportCleanupDays" type="number" min="30" max="365" value="90">
+          </label>
+          <button id="reportCleanupRunBtn" type="button" class="danger">Run Cleanup (Logs + Resolved Alerts)</button>
+        </form>
+        <p id="reportRetentionPreview" class="preview">Retention preview: -</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Payments (Confirmed/Total)</th>
+                <th>Confirmed Amount</th>
+                <th>Jobs (Printed/Total)</th>
+                <th>Jobs Failed</th>
+                <th>Alerts (Critical/Total)</th>
+              </tr>
+            </thead>
+            <tbody id="reportHistoryBody"></tbody>
+          </table>
+        </div>
+      </article>
     </section>
 
     <section class="view" data-view-panel="pricing">
       <article class="card">
         <div class="card-header">
-          <h2>Pricing Controls</h2>
+          <h2><span class="title-icon">⧉</span>Pricing and Printer Capability Controls</h2>
           <button id="pricingReloadBtn" type="button">Reload</button>
         </div>
         <form id="pricingForm" class="filters pricing">
@@ -313,22 +359,56 @@
           <label>Currency
             <input id="pricingCurrency" type="text" maxlength="3">
           </label>
+          <label>Supports Color
+            <select id="pricingSupportsColor">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          <label>Supports A3
+            <select id="pricingSupportsA3">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          <label>Black & White Only
+            <select id="pricingBwOnly">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </label>
+          <label>A4 Only
+            <select id="pricingA4Only">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </label>
           <button id="pricingSaveBtn" type="submit">Save Pricing</button>
         </form>
         <p id="pricingPreview" class="preview">-</p>
+        <p id="pricingCapabilityPreview" class="preview">Capabilities: -</p>
       </article>
     </section>
 
     <section class="view" data-view-panel="kiosk">
-      <article class="card">
+      <article class="card" data-kiosk-panel="experience">
         <div class="card-header">
-          <h2>Customer Experience Controls</h2>
+          <h2><span class="title-icon">⌂</span>Kiosk Configuration</h2>
           <div class="inline-actions">
+            <label class="check">
+              Section
+              <select id="kioskSubtabSelect">
+                <option value="experience">Customer Experience</option>
+                <option value="actions">Device Actions</option>
+                <option value="qr">QR Pack</option>
+              </select>
+            </label>
             <button id="customerExperienceReloadBtn" type="button">Reload Controls</button>
             <button id="customerAvailabilityReloadBtn" type="button">Check Availability</button>
           </div>
         </div>
         <form id="customerExperienceForm" class="filters wide">
+          <p class="form-group-title">Device and Branding</p>
           <label>Active Device Code
             <input id="cxActiveDeviceCode" type="text" placeholder="pi-kiosk-001">
           </label>
@@ -365,6 +445,7 @@
           <label>Brand Orange
             <input id="cxBrandOrange" type="text" placeholder="#f47c20">
           </label>
+          <p class="form-group-title">Customer Flow and Print Options</p>
           <label>Hide Payment Method
             <select id="cxHidePaymentMethod">
               <option value="true">Yes</option>
@@ -403,6 +484,7 @@
           <label>Printer Unready Message
             <input id="cxPrinterUnreadyMessage" type="text" placeholder="Printer unavailable, contact support.">
           </label>
+          <p class="form-group-title">Hotspot and Network</p>
           <label>Hotspot Enabled
             <select id="cxHotspotEnabled">
               <option value="false">No</option>
@@ -418,18 +500,23 @@
           <label>Wi-Fi Security
             <select id="cxHotspotSecurity">
               <option value="WPA">WPA</option>
-              <option value="WEP">WEP</option>
               <option value="NOPASS">NOPASS</option>
             </select>
+          </label>
+          <label>Hotspot Country
+            <input id="cxHotspotCountry" type="text" placeholder="TZ">
+          </label>
+          <label>Hotspot Channel
+            <input id="cxHotspotChannel" type="number" min="1" max="13" value="6">
           </label>
           <button id="customerExperienceSaveBtn" type="submit">Save Customer Controls</button>
         </form>
         <p id="customerAvailabilityPreview" class="preview">Availability: -</p>
       </article>
 
-      <article class="card">
+      <article class="card" data-kiosk-panel="actions">
         <div class="card-header">
-          <h2>Device Actions</h2>
+          <h2><span class="title-icon">⌁</span>Device Actions</h2>
         </div>
         <form id="deviceActionForm" class="filters">
           <label>Device Code
@@ -444,6 +531,8 @@
           <div class="inline-actions stretch">
             <button id="actionPauseKioskBtn" type="button">Pause Kiosk</button>
             <button id="actionResumeKioskBtn" type="button">Resume Kiosk</button>
+            <button id="actionApplyHotspotBtn" type="button">Apply Hotspot</button>
+            <button id="actionDisableHotspotBtn" type="button">Disable Hotspot</button>
             <button id="actionRestartAgentBtn" type="button">Restart Agent</button>
             <button id="actionRestartApiBtn" type="button">Restart API</button>
             <button id="actionRebootDeviceBtn" type="button" class="danger">Reboot Device</button>
@@ -451,9 +540,9 @@
         </form>
       </article>
 
-      <article class="card">
+      <article class="card" data-kiosk-panel="qr">
         <div class="card-header">
-          <h2>Per-Device QR Pack</h2>
+          <h2><span class="title-icon">▧</span>Per-Device QR Pack</h2>
           <button id="qrPackReloadBtn" type="button">Reload QR Pack</button>
         </div>
         <div class="qr-grid">

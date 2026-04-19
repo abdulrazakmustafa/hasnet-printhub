@@ -61,6 +61,7 @@ def main() -> int:
         ("app/static/admin_app/app.js", "app/static/admin_app/app.js"),
         ("app/static/admin_app/styles.css", "app/static/admin_app/styles.css"),
         ("app/schemas/print_job.py", "app/schemas/print_job.py"),
+        ("requirements.txt", "requirements.txt"),
     ]
 
     for local_rel, _ in files_to_upload:
@@ -88,6 +89,14 @@ def main() -> int:
                 _sftp_mkdir_p(sftp, remote_dir)
                 print(f"Uploading {local_rel} -> {remote_path}")
                 sftp.put(local_path, remote_path)
+
+        install_cmd = (
+            f"{remote_backend_dir}/.venv/bin/python -m pip install "
+            f"-r {remote_backend_dir}/requirements.txt"
+        )
+        code, out, err = _run_cmd(client, install_cmd)
+        if code != 0:
+            raise RuntimeError(f"Dependency install failed (exit={code}). stdout={out!r} stderr={err!r}")
 
         restart_cmd = "sudo -S -p '' systemctl restart hasnet-printhub-api && sudo -S -p '' systemctl is-active hasnet-printhub-api"
         code, out, err = _run_cmd(client, restart_cmd, sudo_password=args.pi_password)

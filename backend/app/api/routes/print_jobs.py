@@ -29,6 +29,7 @@ from app.services.pricing import compute_total_cost
 from app.services.customer_experience import (
     evaluate_customer_availability,
     get_customer_experience_config,
+    resolve_printer_capabilities,
 )
 from app.services.pricing_config import get_pricing_config
 from app.services.upload_storage import (
@@ -177,6 +178,21 @@ def _resolve_customer_device(
     return db.execute(select(Device).where(Device.device_code == selected)).scalar_one_or_none()
 
 
+def _resolved_printer_capabilities(
+    *,
+    db: Session,
+    explicit_device_code: str | None,
+) -> dict[str, bool]:
+    config = get_customer_experience_config()
+    resolved_device = _resolve_customer_device(db=db, explicit_device_code=explicit_device_code)
+    selected_device_code = (
+        resolved_device.device_code
+        if resolved_device is not None
+        else str(explicit_device_code or config.get("active_device_code") or "").strip()
+    )
+    return resolve_printer_capabilities(config=config, device_code=selected_device_code)
+
+
 def _enforce_customer_operation_or_409(
     *,
     db: Session,
@@ -209,12 +225,14 @@ def get_customer_config(
     selected_device_code = (
         resolved_device.device_code if resolved_device is not None else str(config.get("active_device_code") or "")
     )
+    printer_capabilities = resolve_printer_capabilities(config=config, device_code=selected_device_code)
     return {
         "contract_version": "customer-config-v1",
         "device_code": selected_device_code,
         "ui_config": config,
         "pricing": pricing,
         "availability": availability,
+        "printer_capabilities": printer_capabilities,
     }
 
 
@@ -296,6 +314,18 @@ def create_quote(payload: PrintJobCreateRequest, request: Request, db: Session =
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Unsupported color mode '{payload.color}'.",
         ) from exc
+    printer_capabilities = _resolved_printer_capabilities(db=db, explicit_device_code=payload.device_code)
+    if color_mode == ColorMode.color and not printer_capabilities.get("color_enabled", True):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Color printing is not enabled for this printer.",
+        )
+    if payload.paper_size == "a3" and not printer_capabilities.get("a3_enabled", False):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A3 printing is not enabled for this printer.",
+        )
+
     price_per_page = payload.color_price_per_page if color_mode == ColorMode.color else payload.bw_price_per_page
     effective_pages = payload.pages
 

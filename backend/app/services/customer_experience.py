@@ -70,11 +70,23 @@ DEFAULT_CUSTOMER_EXPERIENCE_CONFIG: dict[str, Any] = {
     },
     "hotspot": {
         "enabled": False,
+        "interface": "wlan0",
         "ssid": "HPH-KIOSK-001",
         "passphrase": "",
         "wifi_security": "WPA",
+        "country": "TZ",
+        "channel": 6,
         "gateway_ip": "10.55.0.1",
+        "dhcp_start": "10.55.0.20",
+        "dhcp_end": "10.55.0.220",
         "entry_path": "/customer-start",
+    },
+    "printer_capabilities": {
+        "default": {
+            "color_enabled": True,
+            "a3_enabled": False,
+        },
+        "devices": {},
     },
 }
 
@@ -123,6 +135,16 @@ def _safe_ipv4(value: object, *, fallback: str) -> str:
         if parsed < 0 or parsed > 255:
             return fallback
     return candidate
+
+
+def _safe_int(value: object, *, fallback: int, min_value: int, max_value: int) -> int:
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return fallback
+    if parsed < min_value or parsed > max_value:
+        return fallback
+    return parsed
 
 
 def _load_raw_customer_experience_payload() -> dict[str, Any]:
@@ -258,6 +280,11 @@ def sanitize_customer_experience_config(payload: dict[str, Any] | None) -> dict[
         source_hotspot.get("enabled"),
         default=defaults["hotspot"]["enabled"],
     )
+    out["hotspot"]["interface"] = _safe_text(
+        source_hotspot.get("interface"),
+        default=defaults["hotspot"]["interface"],
+        max_len=24,
+    ) or defaults["hotspot"]["interface"]
     out["hotspot"]["ssid"] = _safe_text(
         source_hotspot.get("ssid"),
         default=defaults["hotspot"]["ssid"],
@@ -277,7 +304,18 @@ def sanitize_customer_experience_config(payload: dict[str, Any] | None) -> dict[
         default=defaults["hotspot"]["wifi_security"],
         max_len=10,
     ).upper()
-    out["hotspot"]["wifi_security"] = security if security in {"WPA", "WEP", "NOPASS"} else "WPA"
+    out["hotspot"]["wifi_security"] = security if security in {"WPA", "NOPASS"} else "WPA"
+    out["hotspot"]["country"] = _safe_text(
+        source_hotspot.get("country"),
+        default=defaults["hotspot"]["country"],
+        max_len=2,
+    ).upper() or defaults["hotspot"]["country"]
+    out["hotspot"]["channel"] = _safe_int(
+        source_hotspot.get("channel"),
+        fallback=defaults["hotspot"]["channel"],
+        min_value=1,
+        max_value=13,
+    )
     entry_path = _safe_text(
         source_hotspot.get("entry_path"),
         default=defaults["hotspot"]["entry_path"],
@@ -286,6 +324,43 @@ def sanitize_customer_experience_config(payload: dict[str, Any] | None) -> dict[
     if not entry_path.startswith("/"):
         entry_path = "/" + entry_path
     out["hotspot"]["entry_path"] = entry_path
+    out["hotspot"]["dhcp_start"] = _safe_ipv4(
+        source_hotspot.get("dhcp_start"),
+        fallback=defaults["hotspot"]["dhcp_start"],
+    )
+    out["hotspot"]["dhcp_end"] = _safe_ipv4(
+        source_hotspot.get("dhcp_end"),
+        fallback=defaults["hotspot"]["dhcp_end"],
+    )
+
+    source_printer_caps = _safe_dict(payload.get("printer_capabilities"))
+    source_printer_defaults = _safe_dict(source_printer_caps.get("default"))
+    out["printer_capabilities"]["default"]["color_enabled"] = _safe_bool(
+        source_printer_defaults.get("color_enabled"),
+        default=defaults["printer_capabilities"]["default"]["color_enabled"],
+    )
+    out["printer_capabilities"]["default"]["a3_enabled"] = _safe_bool(
+        source_printer_defaults.get("a3_enabled"),
+        default=defaults["printer_capabilities"]["default"]["a3_enabled"],
+    )
+    source_printer_devices = _safe_dict(source_printer_caps.get("devices"))
+    normalized_printer_devices: dict[str, dict[str, bool]] = {}
+    for raw_device_code, raw_flags in source_printer_devices.items():
+        device_code = _safe_text(raw_device_code, default="", max_len=120)
+        if not device_code:
+            continue
+        flags = _safe_dict(raw_flags)
+        normalized_printer_devices[device_code] = {
+            "color_enabled": _safe_bool(
+                flags.get("color_enabled"),
+                default=out["printer_capabilities"]["default"]["color_enabled"],
+            ),
+            "a3_enabled": _safe_bool(
+                flags.get("a3_enabled"),
+                default=out["printer_capabilities"]["default"]["a3_enabled"],
+            ),
+        }
+    out["printer_capabilities"]["devices"] = normalized_printer_devices
 
     return out
 
@@ -302,6 +377,28 @@ def save_customer_experience_config(payload: dict[str, Any]) -> dict[str, Any]:
     _CUSTOMER_EXPERIENCE_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     _CUSTOMER_EXPERIENCE_CONFIG_PATH.write_text(json.dumps(normalized, indent=2), encoding="utf-8")
     return normalized
+
+
+def resolve_printer_capabilities(*, config: dict[str, Any], device_code: str | None) -> dict[str, bool]:
+    defaults = DEFAULT_CUSTOMER_EXPERIENCE_CONFIG["printer_capabilities"]["default"]
+    printer_caps = _safe_dict(config.get("printer_capabilities"))
+    default_flags = _safe_dict(printer_caps.get("default"))
+    resolved = {
+        "color_enabled": _safe_bool(default_flags.get("color_enabled"), default=defaults["color_enabled"]),
+        "a3_enabled": _safe_bool(default_flags.get("a3_enabled"), default=defaults["a3_enabled"]),
+    }
+
+    normalized_device_code = _safe_text(device_code, default="", max_len=120)
+    if not normalized_device_code:
+        return resolved
+
+    per_device = _safe_dict(_safe_dict(printer_caps.get("devices")).get(normalized_device_code))
+    if not per_device:
+        return resolved
+
+    resolved["color_enabled"] = _safe_bool(per_device.get("color_enabled"), default=resolved["color_enabled"])
+    resolved["a3_enabled"] = _safe_bool(per_device.get("a3_enabled"), default=resolved["a3_enabled"])
+    return resolved
 
 
 def _printer_blocking_reason(device: Device) -> str | None:
