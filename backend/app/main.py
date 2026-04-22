@@ -81,6 +81,11 @@ def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/", include_in_schema=False)
+def root_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/customer-start", status_code=302)
+
+
 @app.get("/customer-start", include_in_schema=False)
 def customer_start_redirect() -> RedirectResponse:
     return RedirectResponse(url="/customer-app/?entry=qr", status_code=307)
@@ -89,3 +94,28 @@ def customer_start_redirect() -> RedirectResponse:
 @app.get("/customer", include_in_schema=False)
 def customer_short_redirect() -> RedirectResponse:
     return RedirectResponse(url="/customer-app/?entry=qr", status_code=307)
+
+
+@app.get("/generate_204", include_in_schema=False)
+def captive_generate_204() -> RedirectResponse:
+    return RedirectResponse(url="/customer-start", status_code=302)
+
+
+@app.get("/gen_204", include_in_schema=False)
+def captive_gen_204() -> RedirectResponse:
+    return RedirectResponse(url="/customer-start", status_code=302)
+
+
+@app.get("/hotspot-detect.html", include_in_schema=False)
+def captive_hotspot_detect() -> RedirectResponse:
+    return RedirectResponse(url="/customer-start", status_code=302)
+
+
+@app.get("/connecttest.txt", include_in_schema=False)
+def captive_connect_test() -> RedirectResponse:
+    return RedirectResponse(url="/customer-start", status_code=302)
+
+
+@app.get("/ncsi.txt", include_in_schema=False)
+def captive_ncsi() -> RedirectResponse:
+    return RedirectResponse(url="/customer-start", status_code=302)

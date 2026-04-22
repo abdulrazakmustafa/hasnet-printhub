@@ -44,15 +44,26 @@ def main() -> int:
     args = parser.parse_args()
 
     backend_dir = Path(__file__).resolve().parents[1]
+    project_root = backend_dir.parent
     remote_backend_dir = args.remote_backend_dir or f"/home/{args.pi_user}/hasnet-printhub/backend"
+    remote_project_dir = posixpath.dirname(remote_backend_dir.rstrip("/"))
 
     files_to_upload = [
+        ("app/main.py", "app/main.py"),
         ("app/api/routes/admin.py", "app/api/routes/admin.py"),
+        ("app/api/routes/admin_auth.py", "app/api/routes/admin_auth.py"),
         ("app/api/routes/alerts.py", "app/api/routes/alerts.py"),
+        ("app/api/routes/devices.py", "app/api/routes/devices.py"),
         ("app/api/routes/print_jobs.py", "app/api/routes/print_jobs.py"),
+        ("app/api/deps.py", "app/api/deps.py"),
+        ("app/api/router.py", "app/api/router.py"),
+        ("app/core/config.py", "app/core/config.py"),
+        ("app/core/security.py", "app/core/security.py"),
         ("app/services/payment_gateway.py", "app/services/payment_gateway.py"),
+        ("app/services/admin_auth.py", "app/services/admin_auth.py"),
         ("app/services/customer_experience.py", "app/services/customer_experience.py"),
         ("app/services/device_actions.py", "app/services/device_actions.py"),
+        ("app/services/pricing_config.py", "app/services/pricing_config.py"),
         ("app/services/refund_workflow.py", "app/services/refund_workflow.py"),
         ("app/static/customer_app/index.html", "app/static/customer_app/index.html"),
         ("app/static/customer_app/app.js", "app/static/customer_app/app.js"),
@@ -60,14 +71,27 @@ def main() -> int:
         ("app/static/admin_app/index.html", "app/static/admin_app/index.html"),
         ("app/static/admin_app/app.js", "app/static/admin_app/app.js"),
         ("app/static/admin_app/styles.css", "app/static/admin_app/styles.css"),
+        ("app/schemas/device.py", "app/schemas/device.py"),
         ("app/schemas/print_job.py", "app/schemas/print_job.py"),
         ("requirements.txt", "requirements.txt"),
     ]
+    edge_files_to_upload = ["config.py", "heartbeat.py", "monitor.py"]
+    edge_target_dirs = [
+        posixpath.join(remote_project_dir, "edge-agent"),
+        f"/home/{args.pi_user}/edge-agent",
+    ]
+    edge_hotspot_local = project_root / "edge-agent" / "scripts" / "configure-hotspot-ap.sh"
 
     for local_rel, _ in files_to_upload:
         local_path = backend_dir / local_rel
         if not local_path.exists():
             raise FileNotFoundError(f"Local file not found: {local_path}")
+    for local_rel in edge_files_to_upload:
+        local_path = project_root / "edge-agent" / local_rel
+        if not local_path.exists():
+            raise FileNotFoundError(f"Local file not found: {local_path}")
+    if not edge_hotspot_local.exists():
+        raise FileNotFoundError(f"Local file not found: {edge_hotspot_local}")
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -89,6 +113,18 @@ def main() -> int:
                 _sftp_mkdir_p(sftp, remote_dir)
                 print(f"Uploading {local_rel} -> {remote_path}")
                 sftp.put(local_path, remote_path)
+
+            for edge_dir in edge_target_dirs:
+                edge_hotspot_remote = posixpath.join(edge_dir, "scripts", "configure-hotspot-ap.sh")
+                _sftp_mkdir_p(sftp, posixpath.dirname(edge_hotspot_remote))
+                print(f"Uploading edge-agent hotspot script -> {edge_hotspot_remote}")
+                sftp.put(str(edge_hotspot_local), edge_hotspot_remote)
+                for local_rel in edge_files_to_upload:
+                    local_path = str(project_root / "edge-agent" / local_rel)
+                    remote_path = posixpath.join(edge_dir, local_rel)
+                    _sftp_mkdir_p(sftp, posixpath.dirname(remote_path))
+                    print(f"Uploading edge-agent {local_rel} -> {remote_path}")
+                    sftp.put(local_path, remote_path)
 
         install_cmd = (
             f"{remote_backend_dir}/.venv/bin/python -m pip install "
@@ -117,6 +153,20 @@ def main() -> int:
             time.sleep(2)
         if not health_ok:
             raise RuntimeError(f"Remote check failed: {health_cmd}\nstdout={out}\nstderr={err}")
+
+        for edge_dir in edge_target_dirs:
+            edge_hotspot_remote = posixpath.join(edge_dir, "scripts", "configure-hotspot-ap.sh")
+            chmod_cmd = f"chmod +x {edge_hotspot_remote}"
+            code, out, err = _run_cmd(client, chmod_cmd)
+            if code != 0:
+                raise RuntimeError(f"Failed to chmod hotspot script (exit={code}). stdout={out!r} stderr={err!r}")
+
+        agent_restart_cmd = "sudo -S -p '' systemctl restart hasnet-printhub-agent && sudo -S -p '' systemctl is-active hasnet-printhub-agent"
+        code, out, err = _run_cmd(client, agent_restart_cmd, sudo_password=args.pi_password)
+        if code != 0:
+            raise RuntimeError(f"Agent restart failed (exit={code}). stdout={out!r} stderr={err!r}")
+        safe_agent_out = out.replace(args.pi_password, "********")
+        print("Agent state:", safe_agent_out.strip() or "(empty)")
 
         checks = [
             f"curl -sS http://127.0.0.1:{args.api_port}/api/v1/admin/pricing",

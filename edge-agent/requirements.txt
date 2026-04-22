@@ -1,1 +1,50 @@
-requests>=2.32,<3
+Design a modern, solar-powered self-service printing kiosk for public spaces such as universities and airports. The kiosk is a sleek, vertical rectangular box (about 1.7 meters tall), with a minimalist and premium design. 
+
+The top roof is slightly angled and fully covered with solar panels. The front panel includes a large, clearly visible QR code at eye level, simple step-by-step printed instructions with icons (scan, upload, pay, print), and a clean user interface layout.
+
+There is NO touchscreen and NO open access to internal components. The kiosk is fully enclosed and tamper-proof. The only opening is a very thin horizontal paper خروج slot near the bottom, designed so users can only collect printed paper but cannot insert hands or objects.
+
+Material: matte metal or composite, weatherproof, modern finish (dark gray, white, or branded colors).
+
+Environment: placed in a busy public area like an airport or university campus.
+
+Lighting: natural daylight, realistic shadows.
+
+Style: ultra-realistic product render, industrial design, high detail, 4K.
+
+_____________
+
+
+Create a detailed technical visualization of a solar-powered self-service printing kiosk. The kiosk is a tall rectangular box with a solar panel roof. Show both the exterior and a cutaway section revealing internal components.
+
+Inside the kiosk include:
+- Printer unit
+- Battery storage system
+- Solar charge controller
+- Mini computer (like Raspberry Pi)
+- WiFi router
+
+The front exterior includes:
+- Large QR code for scanning
+- Printed instructions with icons
+- No touchscreen
+- A thin secure output slot for paper only
+
+The design must emphasize:
+- Fully enclosed, tamper-proof structure
+- No user access to internal components
+- Clean cable management
+
+Style: engineering diagram + realistic rendering hybrid, labeled components, high clarity, professional industrial design presentation.
+
+_____
+
+Illustrate a user interacting with a solar-powered smart printing kiosk in a public space. The kiosk is a modern enclosed box with a solar panel roof and a large QR code on the front.
+
+A person is scanning the QR code with their smartphone. On the phone screen, show a web interface where the user uploads a file, selects print options (color or black and white, number of copies), and completes payment.
+
+The kiosk has no screen and no exposed parts, only a thin paper خروج slot at the bottom where printed documents are dispensed.
+
+Environment: university campus or airport.
+
+Style: realistic, clean UI design, modern technology concept, high detail.

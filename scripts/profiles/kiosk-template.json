@@ -1,0 +1,37 @@
+{
+  "kiosk_id": "kiosk-001",
+  "pi": {
+    "host": "hph-pi01.local",
+    "user": "hasnet_pi"
+  },
+  "backend": {
+    "enabled": false
+  },
+  "agent": {
+    "enabled": true,
+    "backend_base_url": "http://ADMIN-BACKEND-IP:8000/api/v1",
+    "device_code": "pi-kiosk-001",
+    "device_api_token": "CHANGE_ME_DEVICE_TOKEN",
+    "site_name": "Kiosk 1",
+    "mock_print": false,
+    "heartbeat_interval_sec": 30,
+    "poll_interval_sec": 6,
+    "request_timeout_sec": 10,
+    "agent_version": "0.1.0",
+    "firmware_version": "raspi-os-bookworm",
+    "printer_name": "",
+    "storage_base_url": ""
+  },
+  "hotspot": {
+    "enabled": true,
+    "interface": "wlan0",
+    "ssid": "HPH-KIOSK-001",
+    "security": "NOPASS",
+    "passphrase": "",
+    "country": "TZ",
+    "channel": 6,
+    "gateway_ip": "10.55.0.1",
+    "dhcp_start": "10.55.0.20",
+    "dhcp_end": "10.55.0.220"
+  }
+}

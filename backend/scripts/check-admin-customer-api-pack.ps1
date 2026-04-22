@@ -1,7 +1,9 @@
 param(
     [string]$ApiBaseUrl = "http://hph-pi01.local:8000/api/v1",
     [int]$Limit = 5,
-    [string]$JobId = ""
+    [string]$JobId = "",
+    [string]$AdminEmail = "abdulrazak.jmus@gmail.com",
+    [string]$AdminPassword = "@Dulleycubic1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,6 +17,17 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd("/")
 Write-Host ""
 Write-Host "========== ADMIN/CUSTOMER API SMOKE ==========" -ForegroundColor Yellow
 Write-Host ("ApiBaseUrl: {0}" -f $ApiBaseUrl) -ForegroundColor Cyan
+
+$loginUrl = "$ApiBaseUrl/admin/auth/login"
+Write-Host ""
+Write-Host ("POST {0}" -f $loginUrl) -ForegroundColor DarkCyan
+$loginBody = @{
+    email = $AdminEmail
+    password = $AdminPassword
+} | ConvertTo-Json
+$login = Invoke-RestMethod -Method POST -Uri $loginUrl -ContentType "application/json" -Body $loginBody
+$adminHeaders = @{ Authorization = "Bearer $($login.access_token)" }
+Write-Host ("- admin_user: {0}" -f $login.user.email)
 
 $devicesUrl = "$ApiBaseUrl/admin/devices?include_inactive=false"
 $alertsUrl = "$ApiBaseUrl/alerts?limit=$Limit"
@@ -30,7 +43,7 @@ $refundsUrl = "$ApiBaseUrl/admin/refunds"
 
 Write-Host ""
 Write-Host ("GET {0}" -f $devicesUrl) -ForegroundColor DarkCyan
-$devices = Invoke-RestMethod -Method GET -Uri $devicesUrl
+$devices = Invoke-RestMethod -Method GET -Uri $devicesUrl -Headers $adminHeaders
 Write-Host ("- devices_count: {0}" -f (@($devices.items).Count))
 
 Write-Host ""
@@ -40,25 +53,29 @@ Write-Host ("- alerts_count: {0}" -f (@($alerts.items).Count))
 
 Write-Host ""
 Write-Host ("GET {0}" -f $paymentsUrl) -ForegroundColor DarkCyan
-$payments = Invoke-RestMethod -Method GET -Uri $paymentsUrl
+$payments = Invoke-RestMethod -Method GET -Uri $paymentsUrl -Headers $adminHeaders
 Write-Host ("- payments_count: {0}" -f (@($payments.items).Count))
 
 Write-Host ""
 Write-Host ("GET {0}" -f $pendingIncidentsUrl) -ForegroundColor DarkCyan
-$pendingIncidents = Invoke-RestMethod -Method GET -Uri $pendingIncidentsUrl
+$pendingIncidents = Invoke-RestMethod -Method GET -Uri $pendingIncidentsUrl -Headers $adminHeaders
 Write-Host ("- pending_incidents_count: {0}" -f (@($pendingIncidents.items).Count))
 Write-Host ("- escalated_incidents_count: {0}" -f $pendingIncidents.escalated_count)
 
 Write-Host ""
 Write-Host ("GET {0}" -f $pricingUrl) -ForegroundColor DarkCyan
-$pricing = Invoke-RestMethod -Method GET -Uri $pricingUrl
+$pricing = Invoke-RestMethod -Method GET -Uri $pricingUrl -Headers $adminHeaders
 Write-Host ("- bw_price_per_page: {0}" -f $pricing.bw_price_per_page)
 Write-Host ("- color_price_per_page: {0}" -f $pricing.color_price_per_page)
+Write-Host ("- a4_bw_price_per_page: {0}" -f $pricing.a4_bw_price_per_page)
+Write-Host ("- a4_color_price_per_page: {0}" -f $pricing.a4_color_price_per_page)
+Write-Host ("- a3_bw_price_per_page: {0}" -f $pricing.a3_bw_price_per_page)
+Write-Host ("- a3_color_price_per_page: {0}" -f $pricing.a3_color_price_per_page)
 Write-Host ("- pricing_currency: {0}" -f $pricing.currency)
 
 Write-Host ""
 Write-Host ("GET {0}" -f $dashboardSnapshotUrl) -ForegroundColor DarkCyan
-$dashboardSnapshot = Invoke-RestMethod -Method GET -Uri $dashboardSnapshotUrl
+$dashboardSnapshot = Invoke-RestMethod -Method GET -Uri $dashboardSnapshotUrl -Headers $adminHeaders
 Write-Host ("- dashboard_confirmed_payments_today: {0}" -f $dashboardSnapshot.kpis.confirmed_payments_today)
 Write-Host ("- dashboard_printed_jobs_today: {0}" -f $dashboardSnapshot.kpis.printed_jobs_today)
 Write-Host ("- dashboard_pending_incidents: {0}" -f $dashboardSnapshot.kpis.pending_incidents)
@@ -66,7 +83,7 @@ Write-Host ("- dashboard_recent_payments_count: {0}" -f $dashboardSnapshot.recen
 
 Write-Host ""
 Write-Host ("GET {0}" -f $reportUrl) -ForegroundColor DarkCyan
-$report = Invoke-RestMethod -Method GET -Uri $reportUrl
+$report = Invoke-RestMethod -Method GET -Uri $reportUrl -Headers $adminHeaders
 Write-Host ("- today_confirmed_payments: {0}" -f $report.payments.confirmed)
 Write-Host ("- today_confirmed_amount: {0} {1}" -f $report.payments.confirmed_amount, "TZS")
 Write-Host ("- today_printed_jobs: {0}" -f $report.jobs.printed)
@@ -74,12 +91,12 @@ Write-Host ("- active_devices: {0}" -f $report.devices.active)
 
 Write-Host ""
 Write-Host ("GET {0}" -f $customerExperienceUrl) -ForegroundColor DarkCyan
-$customerExperience = Invoke-RestMethod -Method GET -Uri $customerExperienceUrl
+$customerExperience = Invoke-RestMethod -Method GET -Uri $customerExperienceUrl -Headers $adminHeaders
 Write-Host ("- active_device_code: {0}" -f $customerExperience.active_device_code)
 
 Write-Host ""
 Write-Host ("GET {0}" -f $customerAvailabilityUrl) -ForegroundColor DarkCyan
-$customerAvailability = Invoke-RestMethod -Method GET -Uri $customerAvailabilityUrl
+$customerAvailability = Invoke-RestMethod -Method GET -Uri $customerAvailabilityUrl -Headers $adminHeaders
 Write-Host ("- customer_can_upload: {0}" -f $customerAvailability.availability.can_upload)
 Write-Host ("- customer_can_pay: {0}" -f $customerAvailability.availability.can_pay)
 Write-Host ("- customer_reason_code: {0}" -f $customerAvailability.availability.reason_code)
@@ -93,13 +110,13 @@ if (-not [string]::IsNullOrWhiteSpace([string]$customerAvailability.device_code)
     $qrPackUrl = "$ApiBaseUrl/admin/devices/$($customerAvailability.device_code)/qr-pack"
     Write-Host ""
     Write-Host ("GET {0}" -f $qrPackUrl) -ForegroundColor DarkCyan
-    $qrPack = Invoke-RestMethod -Method GET -Uri $qrPackUrl
+    $qrPack = Invoke-RestMethod -Method GET -Uri $qrPackUrl -Headers $adminHeaders
     Write-Host ("- qr_entry_url: {0}" -f $qrPack.entry_url)
 }
 
 Write-Host ""
 Write-Host ("GET {0}" -f $refundsUrl) -ForegroundColor DarkCyan
-$refunds = Invoke-RestMethod -Method GET -Uri $refundsUrl
+$refunds = Invoke-RestMethod -Method GET -Uri $refundsUrl -Headers $adminHeaders
 Write-Host ("- refunds_count: {0}" -f $refunds.count)
 
 if (-not [string]::IsNullOrWhiteSpace($JobId)) {

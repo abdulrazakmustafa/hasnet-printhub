@@ -24,6 +24,10 @@
     pricing: {
       bw_price_per_page: 500,
       color_price_per_page: 500,
+      a4_bw_price_per_page: 500,
+      a4_color_price_per_page: 500,
+      a3_bw_price_per_page: 500,
+      a3_color_price_per_page: 500,
       currency: "TZS",
     },
     mode: "bw",
@@ -157,17 +161,24 @@
     return `${Number(value).toFixed(0)} ${currency}`;
   }
 
-  function unitPriceForMode(mode) {
-    return mode === "color"
-      ? Number(state.pricing.color_price_per_page || 0)
-      : Number(state.pricing.bw_price_per_page || 0);
+  function priceMatrixKey(mode, paperSize) {
+    const normalizedPaper = paperSize === "a3" ? "a3" : "a4";
+    const normalizedMode = mode === "color" ? "color" : "bw";
+    return `${normalizedPaper}_${normalizedMode}_price_per_page`;
+  }
+
+  function unitPriceForMode(mode, paperSize = state.paperSize) {
+    const key = priceMatrixKey(mode, paperSize);
+    const matrixValue = state.pricing[key];
+    const fallback = mode === "color" ? state.pricing.color_price_per_page : state.pricing.bw_price_per_page;
+    return Number(matrixValue ?? fallback ?? 0);
   }
 
   function totalCost() {
     if (!state.upload) return 0;
     const copies = Number(ui.copies.value || 1);
     const pages = selectedPagesCount();
-    return pages * copies * unitPriceForMode(state.mode);
+    return pages * copies * unitPriceForMode(state.mode, state.paperSize);
   }
 
   function selectedPagesCount() {
@@ -301,7 +312,7 @@
     const pages = selectedPagesCount();
     const copies = Number(ui.copies.value || 1);
     const modeLabel = state.mode === "color" ? "Color" : "Black & White";
-    const unitPrice = unitPriceForMode(state.mode);
+    const unitPrice = unitPriceForMode(state.mode, state.paperSize);
     ui.sumPages.textContent = String(pages);
     ui.sumPageSelection.textContent = pageSelectionLabel();
     ui.sumCopies.textContent = String(copies);
@@ -336,10 +347,6 @@
       brand_blue_2: "--brand-blue-2",
       brand_orange: "--brand-orange",
       brand_orange_2: "--brand-orange-2",
-      paper: "--paper",
-      surface: "--surface",
-      ink: "--ink",
-      ink_soft: "--ink-soft",
     };
     Object.entries(map).forEach(([key, cssVar]) => {
       const value = String(theme[key] || "").trim();
@@ -384,6 +391,14 @@
     state.pricing = {
       bw_price_per_page: Number(payload.pricing?.bw_price_per_page || 500),
       color_price_per_page: Number(payload.pricing?.color_price_per_page || 500),
+      a4_bw_price_per_page: Number(payload.pricing?.a4_bw_price_per_page || payload.pricing?.bw_price_per_page || 500),
+      a4_color_price_per_page: Number(
+        payload.pricing?.a4_color_price_per_page || payload.pricing?.color_price_per_page || 500
+      ),
+      a3_bw_price_per_page: Number(payload.pricing?.a3_bw_price_per_page || payload.pricing?.bw_price_per_page || 500),
+      a3_color_price_per_page: Number(
+        payload.pricing?.a3_color_price_per_page || payload.pricing?.color_price_per_page || 500
+      ),
       currency: String(payload.pricing?.currency || "TZS").toUpperCase(),
     };
 
@@ -396,7 +411,7 @@
 
     applyTheme(theme);
     if (siteStripText) ui.siteStrip.textContent = siteStripText;
-    ui.brandTitle.textContent = content.brand_title || "PrintHub";
+    ui.brandTitle.textContent = content.brand_title || "Hasnet PrintHub";
     ui.brandNote.textContent = content.brand_note || "Simple, secure, and fast self-service printing kiosk.";
     ui.welcomeTitle.textContent = content.welcome_title || "Karibu Hasnet PrintHub";
     ui.welcomeLead.textContent = content.welcome_lead || "Upload your PDF document and follow simple steps to complete your print.";
@@ -479,8 +494,8 @@
       device_code: state.deviceCode || DEFAULT_DEVICE_CODE,
       original_file_name: state.upload.file_name,
       upload_id: state.upload.upload_id,
-      bw_price_per_page: Number(state.pricing.bw_price_per_page || 0),
-      color_price_per_page: Number(state.pricing.color_price_per_page || 0),
+      bw_price_per_page: Number(unitPriceForMode("bw", state.paperSize)),
+      color_price_per_page: Number(unitPriceForMode("color", state.paperSize)),
       currency: state.pricing.currency,
     };
 

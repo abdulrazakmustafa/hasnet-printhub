@@ -12,6 +12,12 @@ class Settings(BaseSettings):
 
     secret_key: str
     access_token_expire_minutes: int = 60
+    admin_auth_required: bool = True
+    admin_bootstrap_email: str = "abdulrazak.jmus@gmail.com"
+    admin_bootstrap_password: str = "@Dulleycubic1"
+    admin_bootstrap_name: str = "Abdulrazak Mustafa"
+    admin_password_reset_token_minutes: int = 30
+    admin_password_reset_url_base: str = ""
 
     upload_max_mb: int = 10
     upload_artifact_ttl_hours: int = 24
@@ -37,6 +43,7 @@ class Settings(BaseSettings):
 
     smtp_host: str = ""
     smtp_port: int = 587
+    smtp_use_tls: bool = True
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_from: str = ""
@@ -92,6 +99,13 @@ class Settings(BaseSettings):
     def validate_upload_artifact_ttl_hours(cls, value: int) -> int:
         if value < 1 or value > 24 * 30:
             raise ValueError("UPLOAD_ARTIFACT_TTL_HOURS must be between 1 and 720.")
+        return value
+
+    @field_validator("admin_password_reset_token_minutes")
+    @classmethod
+    def validate_admin_password_reset_token_minutes(cls, value: int) -> int:
+        if value < 5 or value > 24 * 60:
+            raise ValueError("ADMIN_PASSWORD_RESET_TOKEN_MINUTES must be between 5 and 1440.")
         return value
 
 

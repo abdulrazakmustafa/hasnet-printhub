@@ -95,6 +95,22 @@ def _apply_hotspot_config(*, sudo_password: str, hotspot_config: dict[str, Any] 
 def _disable_hotspot(*, sudo_password: str) -> dict[str, Any]:
     disable_script = """
 set -e
+if command -v nmcli >/dev/null 2>&1; then
+  nmcli connection down HPH-KIOSK-AP >/dev/null 2>&1 || true
+  nmcli connection delete HPH-KIOSK-AP >/dev/null 2>&1 || true
+  nmcli connection down hph-kiosk-ap >/dev/null 2>&1 || true
+  nmcli connection delete hph-kiosk-ap >/dev/null 2>&1 || true
+  nmcli radio wifi on >/dev/null 2>&1 || true
+fi
+iptables -t nat -D PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-ports 8000 >/dev/null 2>&1 || true
+iptables -D FORWARD -i wlan0 ! -o wlan0 -j DROP >/dev/null 2>&1 || true
+if command -v nft >/dev/null 2>&1; then
+  nft delete table ip hph_hotspot >/dev/null 2>&1 || true
+  nft delete table ip hph_hotspot_filter >/dev/null 2>&1 || true
+elif [ -x /usr/sbin/nft ]; then
+  /usr/sbin/nft delete table ip hph_hotspot >/dev/null 2>&1 || true
+  /usr/sbin/nft delete table ip hph_hotspot_filter >/dev/null 2>&1 || true
+fi
 systemctl stop hostapd dnsmasq || true
 systemctl disable hostapd dnsmasq || true
 rm -f /etc/dnsmasq.d/hph-kiosk-hotspot.conf
@@ -108,7 +124,8 @@ else
     skip == 0 { print }
   ' /etc/dhcpcd.conf >/tmp/dhcpcd.conf.tmp && mv /tmp/dhcpcd.conf.tmp /etc/dhcpcd.conf
 fi
-systemctl restart dhcpcd || true
+systemctl restart dhcpcd >/dev/null 2>&1 || true
+systemctl restart NetworkManager >/dev/null 2>&1 || true
 """
     return _run_local_sudo(["bash", "-lc", disable_script], sudo_password=sudo_password, timeout_sec=120)
 

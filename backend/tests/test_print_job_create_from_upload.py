@@ -86,7 +86,20 @@ def _pdf_bytes(page_count: int) -> bytes:
     ).encode("utf-8")
 
 
-def test_create_quote_uses_upload_id_metadata() -> None:
+def test_create_quote_uses_upload_id_metadata(monkeypatch) -> None:
+    monkeypatch.setattr(
+        print_jobs_routes,
+        "get_pricing_config",
+        lambda: {
+            "bw_price_per_page": 100.0,
+            "color_price_per_page": 300.0,
+            "a4_bw_price_per_page": 100.0,
+            "a4_color_price_per_page": 300.0,
+            "a3_bw_price_per_page": 100.0,
+            "a3_color_price_per_page": 300.0,
+            "currency": "TZS",
+        },
+    )
     upload_id = str(uuid.uuid4())
     content = _pdf_bytes(page_count=2)
     pdf_path, meta_path = _write_upload(upload_id, "customer-doc.pdf", content, page_count=2)
@@ -140,7 +153,20 @@ def test_create_quote_rejects_missing_upload_id_file() -> None:
     assert "upload_id file was not found" in exc.value.detail
 
 
-def test_create_quote_supports_custom_page_range_from_upload() -> None:
+def test_create_quote_supports_custom_page_range_from_upload(monkeypatch) -> None:
+    monkeypatch.setattr(
+        print_jobs_routes,
+        "get_pricing_config",
+        lambda: {
+            "bw_price_per_page": 100.0,
+            "color_price_per_page": 300.0,
+            "a4_bw_price_per_page": 100.0,
+            "a4_color_price_per_page": 300.0,
+            "a3_bw_price_per_page": 100.0,
+            "a3_color_price_per_page": 300.0,
+            "currency": "TZS",
+        },
+    )
     upload_id = str(uuid.uuid4())
     content = _pdf_bytes(page_count=5)
     pdf_path, meta_path = _write_upload(upload_id, "chapter.pdf", content, page_count=5)
@@ -264,3 +290,44 @@ def test_create_quote_rejects_a3_when_printer_capability_is_disabled(monkeypatch
 
     assert exc.value.status_code == status.HTTP_409_CONFLICT
     assert "A3 printing is not enabled" in exc.value.detail
+
+
+def test_create_quote_uses_a3_matrix_price(monkeypatch) -> None:
+    monkeypatch.setattr(
+        print_jobs_routes,
+        "get_pricing_config",
+        lambda: {
+            "bw_price_per_page": 100.0,
+            "color_price_per_page": 300.0,
+            "a4_bw_price_per_page": 100.0,
+            "a4_color_price_per_page": 300.0,
+            "a3_bw_price_per_page": 600.0,
+            "a3_color_price_per_page": 900.0,
+            "currency": "TZS",
+        },
+    )
+    monkeypatch.setattr(
+        print_jobs_routes,
+        "get_customer_experience_config",
+        lambda: {
+            "active_device_code": "pi-kiosk-001",
+            "printer_capabilities": {
+                "default": {"color_enabled": True, "a3_enabled": True},
+                "devices": {},
+            },
+        },
+    )
+
+    payload = PrintJobCreateRequest(
+        pages=2,
+        copies=1,
+        color="bw",
+        paper_size="a3",
+        bw_price_per_page=100,
+        color_price_per_page=300,
+        currency="TZS",
+    )
+    db = _FakeDB()
+    request = SimpleNamespace(base_url="http://hph-pi01.local:8000/")
+    response = create_quote(payload=payload, request=request, db=db)
+    assert response.total_cost == 1200.0

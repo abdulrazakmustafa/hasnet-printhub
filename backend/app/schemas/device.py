@@ -7,6 +7,14 @@ class DeviceHeartbeatRequest(BaseModel):
     device_code: str
     status: str
     printer_status: str
+    printer_name: str | None = None
+    printer_details: str | None = None
+    paper_level_pct: int | None = None
+    toner_level_pct: int | None = None
+    ink_level_pct: int | None = None
+    active_error: str | None = None
+    uptime_seconds: int | None = None
+    boot_started_at: datetime | None = None
     local_ip: str | None = None
     public_ip: str | None = None
     site_name: str | None = None

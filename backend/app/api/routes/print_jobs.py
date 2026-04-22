@@ -25,7 +25,6 @@ from app.schemas.print_job import (
     PrintJobCustomerStatusResponse,
     PrintJobUploadResponse,
 )
-from app.services.pricing import compute_total_cost
 from app.services.customer_experience import (
     evaluate_customer_availability,
     get_customer_experience_config,
@@ -193,6 +192,32 @@ def _resolved_printer_capabilities(
     return resolve_printer_capabilities(config=config, device_code=selected_device_code)
 
 
+def _resolve_unit_price(
+    *,
+    pricing: dict[str, object],
+    paper_size: str,
+    color_mode: ColorMode,
+) -> float:
+    normalized_paper = str(paper_size or "a4").strip().lower()
+    if normalized_paper not in {"a4", "a3"}:
+        normalized_paper = "a4"
+    is_color = color_mode == ColorMode.color
+    key_map = {
+        ("a4", False): "a4_bw_price_per_page",
+        ("a4", True): "a4_color_price_per_page",
+        ("a3", False): "a3_bw_price_per_page",
+        ("a3", True): "a3_color_price_per_page",
+    }
+    fallback_key = "color_price_per_page" if is_color else "bw_price_per_page"
+    preferred_key = key_map[(normalized_paper, is_color)]
+    raw_value = pricing.get(preferred_key, pricing.get(fallback_key, 0))
+    try:
+        parsed = float(raw_value)
+    except (TypeError, ValueError):
+        parsed = 0.0
+    return round(max(0.0, parsed), 2)
+
+
 def _enforce_customer_operation_or_409(
     *,
     db: Session,
@@ -326,7 +351,8 @@ def create_quote(payload: PrintJobCreateRequest, request: Request, db: Session =
             detail="A3 printing is not enabled for this printer.",
         )
 
-    price_per_page = payload.color_price_per_page if color_mode == ColorMode.color else payload.bw_price_per_page
+    pricing = get_pricing_config()
+    price_per_page = _resolve_unit_price(pricing=pricing, paper_size=payload.paper_size, color_mode=color_mode)
     effective_pages = payload.pages
 
     target_device_code = payload.device_code.strip() or "prototype-local"
@@ -377,13 +403,7 @@ def create_quote(payload: PrintJobCreateRequest, request: Request, db: Session =
         range_end_page=payload.range_end_page,
     )
 
-    total = compute_total_cost(
-        pages=selected_pages,
-        copies=payload.copies,
-        color=payload.color,
-        bw_price_per_page=payload.bw_price_per_page,
-        color_price_per_page=payload.color_price_per_page,
-    )
+    total = round(selected_pages * payload.copies * price_per_page, 2)
 
     job = PrintJob(
         device_id=device.id,

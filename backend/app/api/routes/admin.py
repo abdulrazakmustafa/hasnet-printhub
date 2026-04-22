@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+import subprocess
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -8,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_current_admin_user, get_db, require_admin_or_super_admin
 from app.core.config import settings
 from app.models.alert import Alert
 from app.models.device import Device
@@ -38,18 +39,26 @@ try:
 except Exception:  # pragma: no cover - optional dependency for runtime
     qrcode = None
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 
 
 class AdminPricingConfigResponse(BaseModel):
     bw_price_per_page: float
     color_price_per_page: float
+    a4_bw_price_per_page: float
+    a4_color_price_per_page: float
+    a3_bw_price_per_page: float
+    a3_color_price_per_page: float
     currency: str
 
 
 class AdminPricingConfigUpdateRequest(BaseModel):
-    bw_price_per_page: float = Field(..., ge=0)
-    color_price_per_page: float = Field(..., ge=0)
+    bw_price_per_page: float | None = Field(default=None, ge=0)
+    color_price_per_page: float | None = Field(default=None, ge=0)
+    a4_bw_price_per_page: float | None = Field(default=None, ge=0)
+    a4_color_price_per_page: float | None = Field(default=None, ge=0)
+    a3_bw_price_per_page: float | None = Field(default=None, ge=0)
+    a3_color_price_per_page: float | None = Field(default=None, ge=0)
     currency: str = Field(..., min_length=3, max_length=3)
 
 
@@ -318,6 +327,7 @@ def _build_device_monitor(db: Session, device_code: str | None) -> dict[str, Any
 
     for device in devices:
         uptime_hours = _estimate_uptime_hours(device, now_utc=now_utc)
+        metadata = device.metadata_json if isinstance(device.metadata_json, dict) else {}
         if device.status == DeviceStatus.online:
             online_count += 1
 
@@ -355,17 +365,28 @@ def _build_device_monitor(db: Session, device_code: str | None) -> dict[str, Any
         total_uptime += float(uptime_hours)
         total_errors_24h += error_events_24h
         total_active_alerts += int(active_alerts)
+        heartbeat_meta = (
+            metadata.get("last_heartbeat", {})
+            if isinstance(metadata.get("last_heartbeat"), dict)
+            else {}
+        )
 
         items.append(
             {
                 "device_code": device.device_code,
                 "status": device.status.value,
                 "printer_status": device.printer_status.value,
+                "printer_name": device.printer_name,
                 "last_seen_at": device.last_seen_at,
                 "uptime_hours": float(uptime_hours),
                 "active_alerts": int(active_alerts),
                 "failed_jobs_24h": int(failed_jobs_24h),
                 "error_events_24h": int(error_events_24h),
+                "printer_details": heartbeat_meta.get("printer_details"),
+                "active_error": heartbeat_meta.get("active_error"),
+                "paper_level_pct": heartbeat_meta.get("paper_level_pct"),
+                "toner_level_pct": heartbeat_meta.get("toner_level_pct"),
+                "ink_level_pct": heartbeat_meta.get("ink_level_pct"),
             }
         )
 
@@ -400,10 +421,47 @@ def _device_customer_host(device: Device) -> str:
     return f"{device.device_code}.local"
 
 
+def _escape_wifi_qr(value: str) -> str:
+    escaped = value
+    for token in ("\\", ";", ",", ":", '"'):
+        escaped = escaped.replace(token, "\\" + token)
+    return escaped
+
+
+def _gateway_ip_is_active(gateway_ip: str) -> bool:
+    candidate = str(gateway_ip or "").strip()
+    if not candidate:
+        return False
+    try:
+        result = subprocess.run(
+            ["ip", "-4", "addr", "show"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=2,
+        )
+    except Exception:
+        return False
+    if result.returncode != 0:
+        return False
+    for line in (result.stdout or "").splitlines():
+        line = line.strip()
+        if not line.startswith("inet "):
+            continue
+        # line format: inet 10.55.0.1/24 brd ...
+        raw = line.replace("inet ", "", 1).split(" ", 1)[0]
+        ip = raw.split("/", 1)[0]
+        if ip == candidate:
+            return True
+    return False
+
+
 def _build_qr_pack(db: Session, *, explicit_device_code: str | None = None) -> dict[str, Any]:
     config = get_customer_experience_config()
     hotspot = config.get("hotspot", {})
     hotspot_enabled = bool(hotspot.get("enabled"))
+    hotspot_gateway_ip = str(hotspot.get("gateway_ip") or "").strip()
+    hotspot_active = hotspot_enabled and _gateway_ip_is_active(hotspot_gateway_ip)
     entry_path = str(hotspot.get("entry_path") or "/customer-start").strip() or "/customer-start"
     if not entry_path.startswith("/"):
         entry_path = "/" + entry_path
@@ -416,36 +474,49 @@ def _build_qr_pack(db: Session, *, explicit_device_code: str | None = None) -> d
         host = _device_customer_host(device)
         resolved_device_code = device.device_code
 
-    hotspot_gateway_ip = str(hotspot.get("gateway_ip") or "").strip()
-    if hotspot_enabled and hotspot_gateway_ip:
+    lan_host = host
+    if hotspot_active and hotspot_gateway_ip:
         host = hotspot_gateway_ip
 
     entry_url = f"http://{host}:8000{entry_path}"
+    lan_entry_url = f"http://{lan_host}:8000{entry_path}"
     wifi_security = str(hotspot.get("wifi_security") or "WPA").upper()
     wifi_ssid = str(hotspot.get("ssid") or "").strip()
     wifi_pass = str(hotspot.get("passphrase") or "").strip()
     wifi_qr_payload = ""
     if wifi_ssid:
+        escaped_ssid = _escape_wifi_qr(wifi_ssid)
         if wifi_security == "NOPASS":
-            wifi_qr_payload = f"WIFI:T:nopass;S:{wifi_ssid};;"
+            wifi_qr_payload = f"WIFI:T:nopass;S:{escaped_ssid};;"
         else:
-            wifi_qr_payload = f"WIFI:T:{wifi_security};S:{wifi_ssid};P:{wifi_pass};;"
+            escaped_pass = _escape_wifi_qr(wifi_pass)
+            wifi_qr_payload = f"WIFI:T:{wifi_security};S:{escaped_ssid};P:{escaped_pass};;"
+
+    notes = [
+        "Use the entry_url QR for launching customer flow.",
+        "If hotspot is enabled, print the Wi-Fi QR so customers connect to kiosk network first.",
+        "The hotspot URL (10.55.0.1) works only after joining the kiosk hotspot Wi-Fi.",
+    ]
+    if hotspot_enabled and not hotspot_active:
+        notes.insert(
+            0,
+            "Hotspot is configured but not currently active on this Pi. Entry URL has been switched to LAN host automatically.",
+        )
 
     return {
         "device_code": resolved_device_code,
         "entry_url": entry_url,
+        "lan_entry_url": lan_entry_url,
         "entry_path": entry_path,
         "wifi": {
             "enabled": hotspot_enabled,
+            "active": hotspot_active,
             "ssid": wifi_ssid,
             "wifi_security": wifi_security,
             "gateway_ip": hotspot_gateway_ip,
             "wifi_qr_payload": wifi_qr_payload,
         },
-        "notes": [
-            "Use the entry_url QR for launching customer flow.",
-            "If hotspot is enabled, print the Wi-Fi QR so customers connect to kiosk network first.",
-        ],
+        "notes": notes,
     }
 
 
@@ -497,6 +568,7 @@ def admin_devices(
                 "site_name": device.site_name,
                 "status": device.status.value,
                 "printer_status": device.printer_status.value,
+                "printer_name": device.printer_name,
                 "is_active": device.is_active,
                 "last_seen_at": device.last_seen_at,
                 "local_ip": device.local_ip,
@@ -694,13 +766,16 @@ def admin_dashboard_snapshot(
 
 
 @router.get("/pricing", response_model=AdminPricingConfigResponse)
-def admin_get_pricing_config() -> AdminPricingConfigResponse:
+def admin_get_pricing_config(_manager=Depends(require_admin_or_super_admin)) -> AdminPricingConfigResponse:
     payload = get_pricing_config()
     return AdminPricingConfigResponse(**payload)
 
 
 @router.put("/pricing", response_model=AdminPricingConfigResponse)
-def admin_update_pricing_config(payload: AdminPricingConfigUpdateRequest) -> AdminPricingConfigResponse:
+def admin_update_pricing_config(
+    payload: AdminPricingConfigUpdateRequest,
+    _manager=Depends(require_admin_or_super_admin),
+) -> AdminPricingConfigResponse:
     currency = payload.currency.strip().upper()
     if len(currency) != 3 or not currency.isalpha():
         raise HTTPException(
@@ -708,9 +783,20 @@ def admin_update_pricing_config(payload: AdminPricingConfigUpdateRequest) -> Adm
             detail="currency must be a 3-letter ISO code, for example TZS.",
         )
 
+    legacy_bw = float(payload.bw_price_per_page if payload.bw_price_per_page is not None else 500.0)
+    legacy_color = float(payload.color_price_per_page if payload.color_price_per_page is not None else 500.0)
+    a4_bw = float(payload.a4_bw_price_per_page if payload.a4_bw_price_per_page is not None else legacy_bw)
+    a4_color = float(payload.a4_color_price_per_page if payload.a4_color_price_per_page is not None else legacy_color)
+    a3_bw = float(payload.a3_bw_price_per_page if payload.a3_bw_price_per_page is not None else a4_bw)
+    a3_color = float(payload.a3_color_price_per_page if payload.a3_color_price_per_page is not None else a4_color)
+
     saved = save_pricing_config(
-        bw_price_per_page=payload.bw_price_per_page,
-        color_price_per_page=payload.color_price_per_page,
+        bw_price_per_page=legacy_bw,
+        color_price_per_page=legacy_color,
+        a4_bw_price_per_page=a4_bw,
+        a4_color_price_per_page=a4_color,
+        a3_bw_price_per_page=a3_bw,
+        a3_color_price_per_page=a3_color,
         currency=currency,
     )
     return AdminPricingConfigResponse(**saved)
@@ -866,13 +952,18 @@ def admin_device_action(
 def admin_list_refunds(
     payment_id: str | None = Query(default=None),
     status_filter: str | None = Query(default=None, alias="status"),
+    _manager=Depends(require_admin_or_super_admin),
 ) -> dict[str, Any]:
     items = list_refund_requests(payment_id=payment_id, status_filter=status_filter)
     return {"items": items, "count": len(items)}
 
 
 @router.post("/refunds/request")
-def admin_create_refund_request(payload: AdminRefundRequestCreate, db: Session = Depends(get_db)) -> dict[str, Any]:
+def admin_create_refund_request(
+    payload: AdminRefundRequestCreate,
+    db: Session = Depends(get_db),
+    _manager=Depends(require_admin_or_super_admin),
+) -> dict[str, Any]:
     item = create_refund_request(
         db=db,
         payment_id=payload.payment_id,
@@ -887,6 +978,7 @@ def admin_approve_refund(
     refund_id: str,
     payload: AdminRefundDecisionRequest,
     db: Session = Depends(get_db),
+    _manager=Depends(require_admin_or_super_admin),
 ) -> dict[str, Any]:
     item = approve_refund_request(
         db=db,
@@ -902,6 +994,7 @@ def admin_reject_refund(
     refund_id: str,
     payload: AdminRefundDecisionRequest,
     db: Session = Depends(get_db),
+    _manager=Depends(require_admin_or_super_admin),
 ) -> dict[str, Any]:
     item = reject_refund_request(
         db=db,
@@ -917,6 +1010,7 @@ def admin_execute_refund(
     refund_id: str,
     payload: AdminRefundDecisionRequest,
     db: Session = Depends(get_db),
+    _manager=Depends(require_admin_or_super_admin),
 ) -> dict[str, Any]:
     item = execute_refund_request(
         db=db,

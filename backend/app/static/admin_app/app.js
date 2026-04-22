@@ -1,472 +1,410 @@
-(function () {
+﻿(function () {
   const API_BASE = `${window.location.origin}/api/v1`;
-
+  const TOKEN_KEY = "hph_admin_token";
   const $ = (id) => document.getElementById(id);
+
   const state = {
-    customerExperience: null,
-    qrPack: null,
+    token: "",
+    currentUser: null,
     selectedDeviceCode: "",
+    selectedKioskTab: "experience",
     knownDevices: [],
+    customerExperience: null,
+    chartHistory: { uptime: [], errors: [], alerts: [] },
+    livePulseHandle: null,
+    refreshAllInFlight: false,
+    qrObjectUrls: { customer: null, wifi: null },
   };
 
-  const ui = {
-    tabs: document.querySelectorAll(".tab"),
-    views: document.querySelectorAll("[data-view-panel]"),
-    status: $("status"),
-    refreshAllBtn: $("refreshAllBtn"),
-    globalDeviceSelector: $("globalDeviceSelector"),
-    globalDeviceReloadBtn: $("globalDeviceReloadBtn"),
+  const ids = [
+    "authScreen", "appShell", "authStatus", "loginForm", "loginEmail", "loginPassword", "showForgotBtn", "showResetBtn",
+    "forgotForm", "forgotEmail", "resetForm", "resetToken", "resetPassword", "status", "currentUserLabel", "logoutBtn",
+    "refreshAllBtn", "globalDeviceSelector", "globalDeviceReloadBtn", "kpiConfirmedPayments", "kpiConfirmedAmount", "kpiPrintedJobs",
+    "kpiActiveDevices", "kpiAvgUptimeHours", "kpiErrorEvents24h", "overviewRecentPaymentsBody", "overviewDeviceMonitor", "uptimeChart",
+    "errorChart", "alertChart", "devicesIncludeInactive", "devicesBody", "paymentsFilters", "paymentsReloadBtn", "paymentsStatus",
+    "paymentsMethod", "paymentsLifecycle", "paymentsProvider", "paymentsLimit", "paymentsBody", "reportsReloadBtn", "reportPaymentsTotal",
+    "reportPaymentsConfirmed", "reportPaymentsPending", "reportPaymentsFailed", "reportJobsPrinted", "reportJobsProgress", "reportDevicesActive",
+    "reportDevicesOnline", "reportHistoryReloadBtn", "reportHistoryFilters", "reportHistoryDays", "reportCleanupDays", "reportCleanupDryRunBtn",
+    "reportCleanupRunBtn", "reportHistoryBody", "reportRetentionPreview", "pricingForm", "pricingReloadBtn", "pricingA4Bw", "pricingA4Color",
+    "pricingA3Bw", "pricingA3Color", "pricingCurrency", "pricingColorProfile", "pricingPaperProfile", "pricingPreview", "pricingCapabilityPreview",
+    "customerExperienceForm", "customerExperienceReloadBtn", "customerAvailabilityReloadBtn", "customerAvailabilityPreview", "cxActiveDeviceCode",
+    "cxSiteStripText", "cxBrandTitle", "cxBrandNote", "cxWelcomeTitle", "cxWelcomeLead", "cxSupportPhone", "cxChip1", "cxChip2", "cxChip3",
+    "cxBrandBlue", "cxBrandOrange", "cxHidePaymentMethod", "cxShowStepper", "cxDefaultPaymentMethod", "cxUploadsEnabled", "cxPaymentsEnabled",
+    "cxPauseReason", "cxPrinterUnreadyMessage", "cxHotspotEnabled", "cxHotspotSsid", "cxHotspotPassphrase", "cxHotspotSecurity", "cxHotspotCountry",
+    "cxHotspotChannel", "deviceActionForm", "deviceActionDeviceCode", "deviceActionSudoPassword", "deviceActionNote", "actionPauseKioskBtn",
+    "actionResumeKioskBtn", "actionApplyHotspotBtn", "actionDisableHotspotBtn", "actionRestartAgentBtn", "actionRestartApiBtn", "actionRebootDeviceBtn",
+    "qrPackReloadBtn", "qrEntryUrl", "qrLanEntryUrl", "wifiQrPayload", "qrPreview", "wifiQrPreview", "qrHint", "qrCopyBtn", "qrLanCopyBtn", "wifiCopyBtn", "qrOpenBtn",
+    "refundsReloadBtn", "refundCreateForm", "refundPaymentId", "refundReason", "refundRequestedBy", "refundFilters", "refundStatusFilter",
+    "refundPaymentFilter", "refundActorName", "refundDecisionNote", "refundsBody", "usersReloadBtn", "userCreateForm", "userCreateName",
+    "userCreateEmail", "userCreateRole", "userCreatePassword", "usersBody"
+  ];
+  const ui = Object.fromEntries(ids.map((id) => [id, $(id)]));
+  ui.tabs = document.querySelectorAll(".tab");
+  ui.views = document.querySelectorAll("[data-view-panel]");
+  ui.kioskSubtabs = document.querySelectorAll(".subtab");
+  ui.kioskPanels = document.querySelectorAll("[data-kiosk-panel]");
 
-    kpiConfirmedPayments: $("kpiConfirmedPayments"),
-    kpiConfirmedAmount: $("kpiConfirmedAmount"),
-    kpiPrintedJobs: $("kpiPrintedJobs"),
-    kpiActiveDevices: $("kpiActiveDevices"),
-    kpiAvgUptimeHours: $("kpiAvgUptimeHours"),
-    kpiErrorEvents24h: $("kpiErrorEvents24h"),
-    overviewRecentPaymentsBody: $("overviewRecentPaymentsBody"),
-    overviewDeviceMonitor: $("overviewDeviceMonitor"),
-
-    devicesIncludeInactive: $("devicesIncludeInactive"),
-    devicesBody: $("devicesBody"),
-
-    paymentsFilters: $("paymentsFilters"),
-    paymentsReloadBtn: $("paymentsReloadBtn"),
-    paymentsStatus: $("paymentsStatus"),
-    paymentsMethod: $("paymentsMethod"),
-    paymentsLifecycle: $("paymentsLifecycle"),
-    paymentsProvider: $("paymentsProvider"),
-    paymentsDeviceCode: $("paymentsDeviceCode"),
-    paymentsLimit: $("paymentsLimit"),
-    paymentsBody: $("paymentsBody"),
-
-    incidentsFilters: $("incidentsFilters"),
-    incidentsReloadBtn: $("incidentsReloadBtn"),
-    incidentsEscalatedOnly: $("incidentsEscalatedOnly"),
-    incidentsMethod: $("incidentsMethod"),
-    incidentsDeviceCode: $("incidentsDeviceCode"),
-    incidentsLimit: $("incidentsLimit"),
-    incidentsBody: $("incidentsBody"),
-    reconcileBtn: $("reconcileBtn"),
-
-    alertsFilters: $("alertsFilters"),
-    alertsReloadBtn: $("alertsReloadBtn"),
-    alertsStatus: $("alertsStatus"),
-    alertsSeverity: $("alertsSeverity"),
-    alertsDeviceCode: $("alertsDeviceCode"),
-    alertsLimit: $("alertsLimit"),
-    alertsBody: $("alertsBody"),
-
-    reportsReloadBtn: $("reportsReloadBtn"),
-    reportPaymentsTotal: $("reportPaymentsTotal"),
-    reportPaymentsConfirmed: $("reportPaymentsConfirmed"),
-    reportPaymentsPending: $("reportPaymentsPending"),
-    reportPaymentsFailed: $("reportPaymentsFailed"),
-    reportJobsPrinted: $("reportJobsPrinted"),
-    reportJobsProgress: $("reportJobsProgress"),
-    reportDevicesActive: $("reportDevicesActive"),
-    reportDevicesOnline: $("reportDevicesOnline"),
-    reportHistoryReloadBtn: $("reportHistoryReloadBtn"),
-    reportHistoryFilters: $("reportHistoryFilters"),
-    reportHistoryDays: $("reportHistoryDays"),
-    reportCleanupDays: $("reportCleanupDays"),
-    reportCleanupDryRunBtn: $("reportCleanupDryRunBtn"),
-    reportCleanupRunBtn: $("reportCleanupRunBtn"),
-    reportHistoryBody: $("reportHistoryBody"),
-    reportRetentionPreview: $("reportRetentionPreview"),
-
-    pricingForm: $("pricingForm"),
-    pricingReloadBtn: $("pricingReloadBtn"),
-    pricingBw: $("pricingBw"),
-    pricingColor: $("pricingColor"),
-    pricingCurrency: $("pricingCurrency"),
-    pricingPreview: $("pricingPreview"),
-    pricingSupportsColor: $("pricingSupportsColor"),
-    pricingSupportsA3: $("pricingSupportsA3"),
-    pricingBwOnly: $("pricingBwOnly"),
-    pricingA4Only: $("pricingA4Only"),
-    pricingCapabilityPreview: $("pricingCapabilityPreview"),
-
-    kioskSubtabSelect: $("kioskSubtabSelect"),
-    kioskPanels: document.querySelectorAll("[data-kiosk-panel]"),
-
-    customerExperienceForm: $("customerExperienceForm"),
-    customerExperienceReloadBtn: $("customerExperienceReloadBtn"),
-    customerAvailabilityReloadBtn: $("customerAvailabilityReloadBtn"),
-    customerAvailabilityPreview: $("customerAvailabilityPreview"),
-
-    cxActiveDeviceCode: $("cxActiveDeviceCode"),
-    cxSiteStripText: $("cxSiteStripText"),
-    cxBrandTitle: $("cxBrandTitle"),
-    cxBrandNote: $("cxBrandNote"),
-    cxWelcomeTitle: $("cxWelcomeTitle"),
-    cxWelcomeLead: $("cxWelcomeLead"),
-    cxSupportPhone: $("cxSupportPhone"),
-    cxChip1: $("cxChip1"),
-    cxChip2: $("cxChip2"),
-    cxChip3: $("cxChip3"),
-    cxBrandBlue: $("cxBrandBlue"),
-    cxBrandOrange: $("cxBrandOrange"),
-    cxHidePaymentMethod: $("cxHidePaymentMethod"),
-    cxShowStepper: $("cxShowStepper"),
-    cxDefaultPaymentMethod: $("cxDefaultPaymentMethod"),
-    cxUploadsEnabled: $("cxUploadsEnabled"),
-    cxPaymentsEnabled: $("cxPaymentsEnabled"),
-    cxPauseReason: $("cxPauseReason"),
-    cxPrinterUnreadyMessage: $("cxPrinterUnreadyMessage"),
-    cxHotspotEnabled: $("cxHotspotEnabled"),
-    cxHotspotSsid: $("cxHotspotSsid"),
-    cxHotspotPassphrase: $("cxHotspotPassphrase"),
-    cxHotspotSecurity: $("cxHotspotSecurity"),
-    cxHotspotCountry: $("cxHotspotCountry"),
-    cxHotspotChannel: $("cxHotspotChannel"),
-
-    deviceActionForm: $("deviceActionForm"),
-    deviceActionDeviceCode: $("deviceActionDeviceCode"),
-    deviceActionSudoPassword: $("deviceActionSudoPassword"),
-    deviceActionNote: $("deviceActionNote"),
-    actionPauseKioskBtn: $("actionPauseKioskBtn"),
-    actionResumeKioskBtn: $("actionResumeKioskBtn"),
-    actionApplyHotspotBtn: $("actionApplyHotspotBtn"),
-    actionDisableHotspotBtn: $("actionDisableHotspotBtn"),
-    actionRestartAgentBtn: $("actionRestartAgentBtn"),
-    actionRestartApiBtn: $("actionRestartApiBtn"),
-    actionRebootDeviceBtn: $("actionRebootDeviceBtn"),
-
-    qrPackReloadBtn: $("qrPackReloadBtn"),
-    qrEntryUrl: $("qrEntryUrl"),
-    wifiQrPayload: $("wifiQrPayload"),
-    qrPreview: $("qrPreview"),
-    wifiQrPreview: $("wifiQrPreview"),
-    qrHint: $("qrHint"),
-    qrCopyBtn: $("qrCopyBtn"),
-    wifiCopyBtn: $("wifiCopyBtn"),
-    qrOpenBtn: $("qrOpenBtn"),
-
-    refundsReloadBtn: $("refundsReloadBtn"),
-    refundCreateForm: $("refundCreateForm"),
-    refundPaymentId: $("refundPaymentId"),
-    refundReason: $("refundReason"),
-    refundRequestedBy: $("refundRequestedBy"),
-    refundFilters: $("refundFilters"),
-    refundStatusFilter: $("refundStatusFilter"),
-    refundPaymentFilter: $("refundPaymentFilter"),
-    refundActorName: $("refundActorName"),
-    refundDecisionNote: $("refundDecisionNote"),
-    refundsBody: $("refundsBody"),
+  const setTone = (el, tone) => {
+    el.style.color = tone === "bad" ? "#f47c20" : tone === "ok" ? "#7fa8ff" : "#b3c2ea";
   };
+  const setAuthStatus = (message, tone = "") => { ui.authStatus.textContent = message || ""; setTone(ui.authStatus, tone); };
+  const setStatus = (message, tone = "") => { ui.status.textContent = message || ""; setTone(ui.status, tone); };
 
-  function setStatus(message, tone) {
-    ui.status.textContent = message || "";
-    if (tone === "bad") {
-      ui.status.style.color = "#d64566";
-    } else if (tone === "ok") {
-      ui.status.style.color = "#2f9958";
-    } else {
-      ui.status.style.color = "#506193";
+  const esc = (v) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+  const money = (v, c) => `${Number(v || 0).toFixed(0)} ${String(c || "TZS").toUpperCase()}`;
+  const boolVal = (v) => String(v || "").toLowerCase() === "true";
+  const fmt = (v) => { const d = new Date(v); return v && !Number.isNaN(d.getTime()) ? d.toLocaleString() : "-"; };
+  const q = (o) => { const s = new URLSearchParams(); Object.entries(o || {}).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== "") s.set(k, String(v)); }); return s.toString(); };
+  const canManageAdmins = () => ["super_admin", "admin"].includes(String(state.currentUser?.role || "").toLowerCase());
+  const canManagePricingAndRefunds = () => canManageAdmins();
+
+  async function api(path, options = {}, auth = true) {
+    const headers = { ...(options.headers || {}) };
+    if (auth) {
+      if (!state.token) throw new Error("Signed out.");
+      headers.Authorization = `Bearer ${state.token}`;
     }
-  }
-
-  function parseBooleanInput(raw) {
-    return String(raw || "").toLowerCase() === "true";
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
-  }
-
-  function formatDate(value) {
-    if (!value) return "-";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "-";
-    return date.toLocaleString();
-  }
-
-  function toMoney(value, currency) {
-    const numeric = Number(value || 0);
-    const safeCurrency = String(currency || "TZS").toUpperCase();
-    return `${numeric.toFixed(0)} ${safeCurrency}`;
-  }
-
-  function chipTone(raw) {
-    const value = String(raw || "").toLowerCase();
-    if (
-      value.includes("confirmed")
-      || value.includes("printed")
-      || value.includes("online")
-      || value.includes("active")
-      || value.includes("resolved")
-      || value.includes("ready")
-      || value.includes("ok")
-      || value.includes("executed")
-      || value.includes("approved")
-    ) {
-      return "ok";
-    }
-    if (
-      value.includes("pending")
-      || value.includes("warning")
-      || value.includes("processing")
-      || value.includes("printing")
-      || value.includes("in_progress")
-      || value.includes("awaiting")
-      || value.includes("degraded")
-      || value.includes("requested")
-    ) {
-      return "warn";
-    }
-    if (
-      value.includes("failed")
-      || value.includes("offline")
-      || value.includes("critical")
-      || value.includes("expired")
-      || value.includes("escalated")
-      || value.includes("blocked")
-      || value.includes("rejected")
-    ) {
-      return "bad";
-    }
-    return "";
-  }
-
-  function chip(text) {
-    const tone = chipTone(text);
-    return `<span class="chip ${tone}">${escapeHtml(text || "-")}</span>`;
-  }
-
-  function paymentPayerLabel(item) {
-    const name = String(item.customer_name || "").trim();
-    const msisdn = String(item.customer_msisdn || "").trim();
-    if (name && msisdn) return `${name} | ${msisdn}`;
-    if (name) return name;
-    if (msisdn) return msisdn;
-    return "-";
-  }
-
-  function paymentDocumentLabel(item) {
-    const documentName = String(item.document_name || "").trim();
-    const pages = Number(item.pages || 0);
-    const copies = Number(item.copies || 0);
-    const color = String(item.color_mode || "").trim();
-    const pieces = [];
-    if (pages > 0) pieces.push(`${pages}p`);
-    if (copies > 0) pieces.push(`${copies}x`);
-    if (color) pieces.push(color);
-    if (!documentName && pieces.length < 1) return "-";
-    if (!documentName) return pieces.join(" | ");
-    if (pieces.length < 1) return documentName;
-    return `${documentName} (${pieces.join(" | ")})`;
-  }
-
-  function queryString(params) {
-    const qs = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value === undefined || value === null || value === "") return;
-      qs.set(key, String(value));
-    });
-    return qs.toString();
-  }
-
-  async function call(path, options) {
-    const response = await fetch(`${API_BASE}${path}`, options);
+    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
     let payload = null;
-    try {
-      payload = await response.json();
-    } catch (_err) {
-      payload = null;
-    }
-    if (!response.ok) {
-      const detail = payload && payload.detail ? payload.detail : `HTTP ${response.status}`;
-      throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    try { payload = await res.json(); } catch (_e) { payload = null; }
+    if (!res.ok) {
+      if (res.status === 401 && auth) logout(false);
+      throw new Error(payload?.detail ? (typeof payload.detail === "string" ? payload.detail : JSON.stringify(payload.detail)) : `HTTP ${res.status}`);
     }
     return payload;
   }
 
+  function showAuth(mode = "") {
+    stopLivePulse();
+    ui.authScreen.classList.remove("hidden");
+    ui.appShell.classList.add("hidden");
+    ui.forgotForm.classList.toggle("hidden", mode !== "forgot");
+    ui.resetForm.classList.toggle("hidden", mode !== "reset");
+  }
+
+  function showApp() {
+    ui.authScreen.classList.add("hidden");
+    ui.appShell.classList.remove("hidden");
+  }
+
+  async function login(email, password) {
+    const payload = await api("/admin/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    }, false);
+    state.token = payload.access_token;
+      state.currentUser = payload.user;
+      localStorage.setItem(TOKEN_KEY, state.token);
+      ui.currentUserLabel.textContent = `${payload.user.full_name} (${payload.user.role})`;
+      setRoleVisibility();
+  }
+
+  async function restoreSession() {
+    state.token = localStorage.getItem(TOKEN_KEY) || "";
+    if (!state.token) return false;
+    try {
+      state.currentUser = await api("/admin/auth/me", { method: "GET" });
+      ui.currentUserLabel.textContent = `${state.currentUser.full_name} (${state.currentUser.role})`;
+      setRoleVisibility();
+      return true;
+    } catch (_e) {
+      logout(false);
+      return false;
+    }
+  }
+
+  function logout(showMsg = true) {
+    stopLivePulse();
+    if (state.qrObjectUrls.customer) URL.revokeObjectURL(state.qrObjectUrls.customer);
+    if (state.qrObjectUrls.wifi) URL.revokeObjectURL(state.qrObjectUrls.wifi);
+    state.qrObjectUrls = { customer: null, wifi: null };
+    state.token = "";
+    state.currentUser = null;
+    localStorage.removeItem(TOKEN_KEY);
+    setRoleVisibility();
+    showAuth();
+    if (showMsg) setStatus("Signed out.", "ok");
+  }
+
   function showView(view) {
-    ui.tabs.forEach((tab) => {
-      tab.classList.toggle("active", tab.dataset.view === view);
-    });
-    ui.views.forEach((panel) => {
-      panel.classList.toggle("active", panel.dataset.viewPanel === view);
-    });
+    ui.tabs.forEach((t) => t.classList.toggle("active", t.dataset.view === view));
+    ui.views.forEach((p) => p.classList.toggle("active", p.dataset.viewPanel === view));
+    if (view === "kiosk") showKiosk(state.selectedKioskTab || "experience");
   }
 
-  function showKioskPanel(panel) {
-    const selected = String(panel || "experience");
-    ui.kioskPanels.forEach((card) => {
-      card.classList.toggle("kiosk-visible", card.dataset.kioskPanel === selected);
-    });
-    if (ui.kioskSubtabSelect && ui.kioskSubtabSelect.value !== selected) {
-      ui.kioskSubtabSelect.value = selected;
+  function showKiosk(tab) {
+    state.selectedKioskTab = tab;
+    ui.kioskSubtabs.forEach((t) => t.classList.toggle("active", t.dataset.kioskTab === tab));
+    ui.kioskPanels.forEach((p) => p.classList.toggle("active", p.dataset.kioskPanel === tab));
+  }
+
+  function setRows(tbody, html) {
+    tbody.innerHTML = html || '<tr><td colspan="20">No data</td></tr>';
+  }
+
+  function chip(raw) {
+    const value = String(raw || "").toLowerCase();
+    const tone = value.includes("ok") || value.includes("online") || value.includes("ready") || value.includes("confirmed") || value.includes("printed") ? "ok"
+      : (value.includes("pending") || value.includes("warning") || value.includes("unknown") || value.includes("degraded")
+        ? "warn"
+        : (value.includes("failed") || value.includes("offline") || value.includes("critical") || value.includes("disconnected") ? "bad" : ""));
+    return `<span class="chip ${tone}">${esc(raw || "-")}</span>`;
+  }
+
+  function currentScope() { return String(state.selectedDeviceCode || "").trim(); }
+  function currentDevice() { return String(ui.deviceActionDeviceCode.value || ui.cxActiveDeviceCode.value || currentScope() || "pi-kiosk-001").trim(); }
+
+  function setRoleVisibility() {
+    const usersTab = Array.from(ui.tabs).find((tab) => tab.dataset.view === "users");
+    const pricingTab = Array.from(ui.tabs).find((tab) => tab.dataset.view === "pricing");
+    const refundsTab = Array.from(ui.tabs).find((tab) => tab.dataset.view === "refunds");
+    const canManage = canManageAdmins();
+    const canFinance = canManagePricingAndRefunds();
+
+    if (usersTab) usersTab.classList.toggle("hidden", !canManage);
+    if (pricingTab) pricingTab.classList.toggle("hidden", !canFinance);
+    if (refundsTab) refundsTab.classList.toggle("hidden", !canFinance);
+
+    if (!canManage && usersTab?.classList.contains("active")) {
+      showView("overview");
+    }
+    if (!canFinance && (pricingTab?.classList.contains("active") || refundsTab?.classList.contains("active"))) {
+      showView("overview");
+    }
+
+    if (ui.userCreateRole) {
+      const superRoleOption = Array.from(ui.userCreateRole.options).find((opt) => opt.value === "super_admin");
+      if (superRoleOption) {
+        superRoleOption.disabled = state.currentUser?.role !== "super_admin";
+        superRoleOption.hidden = state.currentUser?.role !== "super_admin";
+        if (state.currentUser?.role !== "super_admin" && ui.userCreateRole.value === "super_admin") {
+          ui.userCreateRole.value = "admin";
+        }
+      }
     }
   }
 
-  function setRows(tbody, rowsHtml) {
-    tbody.innerHTML = rowsHtml || "<tr><td colspan=\"20\">No data</td></tr>";
-  }
-
-  function currentDeviceScope() {
-    const selected = String(state.selectedDeviceCode || "").trim();
-    if (selected) return selected;
-    return "";
-  }
-
-  function currentDeviceCode() {
-    const fromAction = String(ui.deviceActionDeviceCode.value || "").trim();
-    if (fromAction) return fromAction;
-    const fromConfig = String(ui.cxActiveDeviceCode.value || "").trim();
-    if (fromConfig) return fromConfig;
-    const fromScope = currentDeviceScope();
-    if (fromScope) return fromScope;
-    if (state.customerExperience?.active_device_code) return String(state.customerExperience.active_device_code);
-    return "pi-kiosk-001";
-  }
-
-  function ensureDeviceOptions(items) {
-    const map = new Map();
-    (items || []).forEach((item) => {
-      const code = String(item.device_code || "").trim();
-      if (!code) return;
-      map.set(code, {
-        device_code: code,
-        site_name: item.site_name || "",
-      });
-    });
-    state.knownDevices = Array.from(map.values()).sort((a, b) => a.device_code.localeCompare(b.device_code));
-    const previous = String(state.selectedDeviceCode || "").trim();
-    ui.globalDeviceSelector.innerHTML = [
-      "<option value=\"\">All devices</option>",
-      ...state.knownDevices.map((item) => {
-        const label = `${item.device_code}${item.site_name ? ` (${item.site_name})` : ""}`;
-        return `<option value="${escapeHtml(item.device_code)}">${escapeHtml(label)}</option>`;
-      }),
-    ].join("");
-    if (previous && state.knownDevices.some((item) => item.device_code === previous)) {
-      state.selectedDeviceCode = previous;
-      ui.globalDeviceSelector.value = previous;
-    }
-  }
-
-  async function loadDeviceOptions() {
-    const payload = await call("/admin/devices?include_inactive=true", { method: "GET" });
-    ensureDeviceOptions(payload.items || []);
-  }
-
-  function resolvePrinterCapabilities(config, deviceCode) {
-    const printerCapabilities = config?.printer_capabilities || {};
-    const defaults = printerCapabilities.default || {};
-    const resolved = {
-      color_enabled: Boolean(defaults.color_enabled !== false),
-      a3_enabled: Boolean(defaults.a3_enabled),
-    };
-    const normalizedDeviceCode = String(deviceCode || "").trim();
-    if (!normalizedDeviceCode) return resolved;
-    const perDeviceFlags = printerCapabilities.devices?.[normalizedDeviceCode];
-    if (!perDeviceFlags || typeof perDeviceFlags !== "object") return resolved;
-    return {
-      color_enabled: Boolean(perDeviceFlags.color_enabled !== false),
-      a3_enabled: Boolean(perDeviceFlags.a3_enabled),
-    };
-  }
-
-  function normalizeCapabilityToggles() {
-    if (parseBooleanInput(ui.pricingBwOnly.value)) {
-      ui.pricingSupportsColor.value = "false";
-    }
-    if (parseBooleanInput(ui.pricingA4Only.value)) {
-      ui.pricingSupportsA3.value = "false";
-    }
-    ui.pricingBwOnly.value = String(!parseBooleanInput(ui.pricingSupportsColor.value));
-    ui.pricingA4Only.value = String(!parseBooleanInput(ui.pricingSupportsA3.value));
-  }
-
-  function updatePricingCapabilityPreview() {
-    normalizeCapabilityToggles();
-    const supportsColor = parseBooleanInput(ui.pricingSupportsColor.value);
-    const supportsA3 = parseBooleanInput(ui.pricingSupportsA3.value);
-    const scope = currentDeviceScope() || "default scope";
-    const mode1 = supportsColor ? "Color + Black & White" : "Black & White only";
-    const mode2 = supportsA3 ? "A3 + A4" : "A4 only";
-    ui.pricingCapabilityPreview.textContent = `Capabilities (${scope}): ${mode1} | ${mode2}`;
-  }
-
-  function syncPricingCapabilitiesFromConfig() {
-    const scoped = currentDeviceScope() || currentDeviceCode();
-    const capabilities = resolvePrinterCapabilities(state.customerExperience || {}, scoped);
-    ui.pricingSupportsColor.value = String(capabilities.color_enabled);
-    ui.pricingSupportsA3.value = String(capabilities.a3_enabled);
-    updatePricingCapabilityPreview();
-  }
-
-  function paymentRowsHtml(items) {
+  function paymentRows(items) {
     return (items || []).map((item) => `
       <tr>
-        <td>${escapeHtml(formatDate(item.requested_at))}</td>
-        <td>${escapeHtml(item.provider_request_id || "-")}</td>
+        <td>${esc(fmt(item.requested_at))}</td>
+        <td>${esc(item.provider_request_id || "-")}</td>
         <td>${chip(item.method)}</td>
         <td>${chip(item.status)}</td>
         <td>${chip(item.lifecycle || "other")}</td>
-        <td>${escapeHtml(toMoney(item.amount, item.currency))}</td>
-        <td>${escapeHtml(paymentPayerLabel(item))}</td>
-        <td>${escapeHtml(paymentDocumentLabel(item))}</td>
-        <td>${escapeHtml(item.print_job_id || "-")}</td>
-        <td>${escapeHtml(item.device_code || "-")}</td>
+        <td>${esc(money(item.amount, item.currency))}</td>
+        <td>${esc([item.customer_name, item.customer_msisdn].filter(Boolean).join(" | ") || "-")}</td>
+        <td>${esc(item.document_name || "-")}</td>
+        <td>${esc(item.print_job_id || "-")}</td>
+        <td>${esc(item.device_code || "-")}</td>
       </tr>
     `).join("");
   }
 
-  function fillCustomerExperienceForm(config) {
-    state.customerExperience = config || {};
-    const theme = config.theme || {};
-    const content = config.content || {};
-    const flow = config.flow || {};
-    const operations = config.operations || {};
-    const hotspot = config.hotspot || {};
-    const chips = Array.isArray(config.chips) ? config.chips : [];
+  function pushTrend(name, value) {
+    state.chartHistory[name].push(Number(value || 0));
+    if (state.chartHistory[name].length > 36) state.chartHistory[name].shift();
+  }
 
+  function drawTrend(svg, arr, color) {
+    if (!svg) return;
+    if (!arr.length) { svg.innerHTML = ""; return; }
+    const max = Math.max(1, ...arr);
+    const w = 340;
+    const h = 90;
+    const step = arr.length > 1 ? w / (arr.length - 1) : w;
+    const points = arr.map((v, i) => `${(i * step).toFixed(2)},${(h - ((v / max) * (h - 10)) - 4).toFixed(2)}`).join(" ");
+    const end = points.split(" ").slice(-1)[0] || "0,0";
+    const [cx, cy] = end.split(",");
+    const area = `${points} ${w},${h} 0,${h}`;
+    const gridLines = [16, 32, 48, 64, 80]
+      .map((y) => `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="rgba(151,166,209,0.12)" stroke-width="1"></line>`)
+      .join("");
+    svg.innerHTML = `
+      ${gridLines}
+      <polygon points="${area}" fill="${color}" opacity="0.12"></polygon>
+      <polyline fill="none" stroke="${color}" stroke-width="2.2" points="${points}"></polyline>
+      <circle cx="${cx}" cy="${cy}" r="3.3" fill="${color}">
+        <animate attributeName="r" values="2.8;4.8;2.8" dur="1s" repeatCount="indefinite"></animate>
+        <animate attributeName="opacity" values="0.8;1;0.8" dur="1s" repeatCount="indefinite"></animate>
+      </circle>
+    `;
+  }
+
+  function stopLivePulse() {
+    if (state.livePulseHandle) {
+      window.clearInterval(state.livePulseHandle);
+      state.livePulseHandle = null;
+    }
+  }
+
+  function startLivePulse() {
+    stopLivePulse();
+    state.livePulseHandle = window.setInterval(async () => {
+      if (!state.token || document.hidden) return;
+      try {
+        await loadOverview();
+      } catch (_err) {
+        // Ignore pulse errors; manual refresh will report user-visible issues.
+      }
+    }, 8000);
+  }
+
+  async function loadDevicesOptions() {
+    const payload = await api("/admin/devices?include_inactive=true", { method: "GET" });
+    state.knownDevices = (payload.items || []).map((x) => ({ device_code: x.device_code, site_name: x.site_name || "" })).sort((a, b) => a.device_code.localeCompare(b.device_code));
+    const prev = currentScope();
+    ui.globalDeviceSelector.innerHTML = ['<option value="">All devices</option>', ...state.knownDevices.map((x) => `<option value="${esc(x.device_code)}">${esc(`${x.device_code}${x.site_name ? ` (${x.site_name})` : ""}`)}</option>`)].join("");
+    if (prev && state.knownDevices.some((x) => x.device_code === prev)) ui.globalDeviceSelector.value = prev;
+  }
+
+  async function loadOverview() {
+    const payload = await api(`/admin/dashboard/snapshot?${q({ recent_payments_limit: 200, pending_incidents_limit: 1, device_code: currentScope() })}`, { method: "GET" });
+    const k = payload.kpis || {};
+    const m = payload.monitor || {};
+    const s = m.summary || {};
+    ui.kpiConfirmedPayments.textContent = String(k.confirmed_payments_today ?? 0);
+    ui.kpiConfirmedAmount.textContent = money(k.confirmed_amount_today, payload.pricing?.currency || "TZS");
+    ui.kpiPrintedJobs.textContent = String(k.printed_jobs_today ?? 0);
+    ui.kpiActiveDevices.textContent = String(k.active_devices ?? 0);
+    ui.kpiAvgUptimeHours.textContent = String(s.avg_uptime_hours ?? 0);
+    ui.kpiErrorEvents24h.textContent = String(s.total_error_events_24h ?? 0);
+    setRows(ui.overviewRecentPaymentsBody, paymentRows(payload.recent_payments?.items || []));
+
+    const devices = m.devices || [];
+    ui.overviewDeviceMonitor.innerHTML = devices.length
+      ? devices.map((d) => `<article class="monitor-card"><div class="monitor-title"><span>${esc(d.device_code || "-")}</span><span>${chip(d.status || "-")}</span></div><p class="monitor-meta">Printer: ${chip(d.printer_status || "-")} ${esc(d.printer_name ? `(${d.printer_name})` : "")}</p><p class="monitor-meta">Uptime: ${esc(d.uptime_hours)} hrs</p><p class="monitor-meta">Errors(24h): ${esc(d.error_events_24h)}</p><p class="monitor-meta">Active Alerts: ${esc(d.active_alerts)}</p><p class="monitor-meta">Paper/Toner/Ink: ${esc(d.paper_level_pct ?? "-")}% / ${esc(d.toner_level_pct ?? "-")}% / ${esc(d.ink_level_pct ?? "-")}%</p><p class="monitor-meta">Last Error: ${esc(d.active_error || d.printer_details || "-")}</p><p class="monitor-meta">Last Seen: ${esc(fmt(d.last_seen_at))}</p></article>`).join("")
+      : '<p class="hint">No device telemetry available yet.</p>';
+
+    pushTrend("uptime", s.avg_uptime_hours || 0);
+    pushTrend("errors", s.total_error_events_24h || 0);
+    pushTrend("alerts", s.total_active_alerts || 0);
+    drawTrend(ui.uptimeChart, state.chartHistory.uptime, "#26d1df");
+    drawTrend(ui.errorChart, state.chartHistory.errors, "#ff5f76");
+    drawTrend(ui.alertChart, state.chartHistory.alerts, "#1fd06f");
+  }
+
+  async function loadDevices() {
+    const payload = await api(`/admin/devices?include_inactive=${ui.devicesIncludeInactive.checked ? "true" : "false"}`, { method: "GET" });
+    const rows = (payload.items || []).map((d) => `
+      <tr>
+        <td>${esc(d.device_code)}</td>
+        <td>${esc(d.site_name || "-")}</td>
+        <td>${chip(d.status)}</td>
+        <td>${chip(d.printer_status)} ${esc(d.printer_name ? `(${d.printer_name})` : "")}</td>
+        <td>${esc([d.printer_capabilities?.color_enabled ? "Color + B/W" : "B/W only", d.printer_capabilities?.a3_enabled ? "A3 + A4" : "A4 only"].join(" | "))}</td>
+        <td>${esc(fmt(d.last_seen_at))}</td>
+        <td>${esc(d.active_alerts)}</td>
+        <td>${esc(`T:${d.jobs.total} P:${d.jobs.printed} F:${d.jobs.failed}`)}</td>
+      </tr>
+    `).join("");
+    setRows(ui.devicesBody, rows);
+  }
+
+  async function loadPayments() {
+    const payload = await api(`/admin/payments?${q({ limit: ui.paymentsLimit.value || 100, status: ui.paymentsStatus.value, method: ui.paymentsMethod.value, lifecycle: ui.paymentsLifecycle.value, provider: ui.paymentsProvider.value.trim(), device_code: currentScope() })}`, { method: "GET" });
+    setRows(ui.paymentsBody, paymentRows(payload.items || []));
+  }
+
+  async function loadReport() {
+    const p = await api(`/admin/reports/today?${q({ device_code: currentScope() })}`, { method: "GET" });
+    ui.reportPaymentsTotal.textContent = String(p.payments?.total ?? 0);
+    ui.reportPaymentsConfirmed.textContent = String(p.payments?.confirmed ?? 0);
+    ui.reportPaymentsPending.textContent = String(p.payments?.pending ?? 0);
+    ui.reportPaymentsFailed.textContent = String(p.payments?.failed ?? 0);
+    ui.reportJobsPrinted.textContent = String(p.jobs?.printed ?? 0);
+    ui.reportJobsProgress.textContent = String(p.jobs?.in_progress ?? 0);
+    ui.reportDevicesActive.textContent = String(p.devices?.active ?? 0);
+    ui.reportDevicesOnline.textContent = String(p.devices?.online ?? 0);
+  }
+
+  async function loadReportHistory() {
+    const p = await api(`/admin/reports/history?${q({ days: Number(ui.reportHistoryDays.value || 90), device_code: currentScope() })}`, { method: "GET" });
+    setRows(ui.reportHistoryBody, (p.daily || []).map((d) => `<tr><td>${esc(d.date)}</td><td>${esc(`${d.payments_confirmed || 0}/${d.payments_total || 0}`)}</td><td>${esc(money(d.confirmed_amount || 0, ui.pricingCurrency.value || "TZS"))}</td><td>${esc(`${d.jobs_printed || 0}/${d.jobs_total || 0}`)}</td><td>${esc(d.jobs_failed || 0)}</td><td>${esc(`${d.alerts_critical || 0}/${d.alerts_total || 0}`)}</td></tr>`).join(""));
+    const r = p.retention || {};
+    const c = r.cleanup_candidates || {};
+    ui.reportRetentionPreview.textContent = [`Retention: ${r.days || 90} days`, `Cutoff: ${fmt(r.cutoff_utc)}`, `Old logs: ${c.logs ?? 0}`, `Old resolved alerts: ${c.resolved_alerts ?? 0}`, `Old print jobs: ${c.print_jobs ?? 0}`, `Old payments: ${c.payments ?? 0}`].join(" | ");
+  }
+
+  async function runCleanup(dry) {
+    const p = await api(`/admin/reports/cleanup?${q({ retention_days: Number(ui.reportCleanupDays.value || 90), dry_run: dry ? "true" : "false", device_code: currentScope() })}`, { method: "POST" });
+    if (p.status === "dry_run") setStatus(`Dry run: logs=${p.delete_candidates?.logs || 0}, resolved_alerts=${p.delete_candidates?.resolved_alerts || 0}`, "ok");
+    else setStatus(`Cleanup complete: logs=${p.deleted?.logs || 0}, resolved_alerts=${p.deleted?.resolved_alerts || 0}`, "ok");
+  }
+
+  function resolveCaps(config, deviceCode) {
+    const pc = config?.printer_capabilities || {};
+    const defaults = pc.default || {};
+    const base = { color_enabled: Boolean(defaults.color_enabled !== false), a3_enabled: Boolean(defaults.a3_enabled) };
+    const per = pc.devices?.[String(deviceCode || "").trim()];
+    if (!per || typeof per !== "object") return base;
+    return { color_enabled: Boolean(per.color_enabled !== false), a3_enabled: Boolean(per.a3_enabled) };
+  }
+
+  function setProfilesFromCaps(c) {
+    ui.pricingColorProfile.value = c?.color_enabled ? "bw_color" : "bw_only";
+    ui.pricingPaperProfile.value = c?.a3_enabled ? "a4_a3" : "a4_only";
+  }
+
+  function capsFromProfiles() {
+    return { color_enabled: ui.pricingColorProfile.value !== "bw_only", a3_enabled: ui.pricingPaperProfile.value === "a4_a3" };
+  }
+
+  function syncHotspotSecurityUi() {
+    const nopass = String(ui.cxHotspotSecurity.value || "").toUpperCase() === "NOPASS";
+    ui.cxHotspotPassphrase.disabled = nopass;
+    ui.cxHotspotPassphrase.placeholder = nopass ? "Not required for open hotspot" : "Hotspot password";
+    if (nopass) ui.cxHotspotPassphrase.value = "";
+  }
+
+  function updatePricingPreview() {
+    const currency = String(ui.pricingCurrency.value || "TZS").toUpperCase();
+    ui.pricingPreview.textContent = [`A4 BW: ${Number(ui.pricingA4Bw.value || 0).toFixed(0)} ${currency}`, `A4 Color: ${Number(ui.pricingA4Color.value || 0).toFixed(0)} ${currency}`, `A3 BW: ${Number(ui.pricingA3Bw.value || 0).toFixed(0)} ${currency}`, `A3 Color: ${Number(ui.pricingA3Color.value || 0).toFixed(0)} ${currency}`].join(" | ");
+    const c = capsFromProfiles();
+    ui.pricingCapabilityPreview.textContent = `Capabilities (${currentScope() || currentDevice()}): ${c.color_enabled ? "Color + B/W" : "B/W only"} | ${c.a3_enabled ? "A3 + A4" : "A4 only"}`;
+  }
+
+  function fillCX(config) {
+    state.customerExperience = config || {};
+    const t = config.theme || {};
+    const c = config.content || {};
+    const f = config.flow || {};
+    const o = config.operations || {};
+    const h = config.hotspot || {};
+    const chips = Array.isArray(config.chips) ? config.chips : [];
     ui.cxActiveDeviceCode.value = config.active_device_code || "pi-kiosk-001";
     ui.cxSiteStripText.value = config.site_strip_text || "";
-    ui.cxBrandTitle.value = content.brand_title || "";
-    ui.cxBrandNote.value = content.brand_note || "";
-    ui.cxWelcomeTitle.value = content.welcome_title || "";
-    ui.cxWelcomeLead.value = content.welcome_lead || "";
-    ui.cxSupportPhone.value = content.support_phone || "";
+    ui.cxBrandTitle.value = c.brand_title || "";
+    ui.cxBrandNote.value = c.brand_note || "";
+    ui.cxWelcomeTitle.value = c.welcome_title || "";
+    ui.cxWelcomeLead.value = c.welcome_lead || "";
+    ui.cxSupportPhone.value = c.support_phone || "";
     ui.cxChip1.value = chips[0] || "";
     ui.cxChip2.value = chips[1] || "";
     ui.cxChip3.value = chips[2] || "";
-
-    ui.cxBrandBlue.value = theme.brand_blue || "#272365";
-    ui.cxBrandOrange.value = theme.brand_orange || "#f47c20";
-
-    ui.cxHidePaymentMethod.value = String(flow.hide_payment_method !== false);
-    ui.cxShowStepper.value = String(flow.show_stepper !== false);
-    ui.cxDefaultPaymentMethod.value = flow.default_payment_method || "mpesa";
-
-    ui.cxUploadsEnabled.value = String(operations.uploads_enabled !== false);
-    ui.cxPaymentsEnabled.value = String(operations.payments_enabled !== false);
-    ui.cxPauseReason.value = operations.pause_reason || "";
-    ui.cxPrinterUnreadyMessage.value = operations.printer_unready_message || "";
-
-    ui.cxHotspotEnabled.value = String(Boolean(hotspot.enabled));
-    ui.cxHotspotSsid.value = hotspot.ssid || "";
-    ui.cxHotspotPassphrase.value = hotspot.passphrase || "";
-    ui.cxHotspotSecurity.value = hotspot.wifi_security || "WPA";
-    ui.cxHotspotCountry.value = hotspot.country || "TZ";
-    ui.cxHotspotChannel.value = String(Number(hotspot.channel || 6));
-
-    const activeCode = currentDeviceCode();
-    ui.deviceActionDeviceCode.value = activeCode;
-    ui.paymentsDeviceCode.placeholder = activeCode;
-    ui.incidentsDeviceCode.placeholder = activeCode;
-    ui.alertsDeviceCode.placeholder = activeCode;
-    syncPricingCapabilitiesFromConfig();
+    ui.cxBrandBlue.value = t.brand_blue || "#272365";
+    ui.cxBrandOrange.value = t.brand_orange || "#f47c20";
+    ui.cxHidePaymentMethod.value = String(f.hide_payment_method !== false);
+    ui.cxShowStepper.value = String(f.show_stepper !== false);
+    ui.cxDefaultPaymentMethod.value = f.default_payment_method || "mpesa";
+    ui.cxUploadsEnabled.value = String(o.uploads_enabled !== false);
+    ui.cxPaymentsEnabled.value = String(o.payments_enabled !== false);
+    ui.cxPauseReason.value = o.pause_reason || "";
+    ui.cxPrinterUnreadyMessage.value = o.printer_unready_message || "";
+    ui.cxHotspotEnabled.value = String(Boolean(h.enabled));
+    ui.cxHotspotSsid.value = h.ssid || "";
+    ui.cxHotspotPassphrase.value = h.passphrase || "";
+    ui.cxHotspotSecurity.value = h.wifi_security || "NOPASS";
+    ui.cxHotspotCountry.value = h.country || "TZ";
+    ui.cxHotspotChannel.value = String(Number(h.channel || 6));
+    ui.deviceActionDeviceCode.value = currentDevice();
+    syncHotspotSecurityUi();
   }
 
-  function customerExperiencePayloadFromForm() {
+  function cxPayload() {
+    const hotspotSecurity = String(ui.cxHotspotSecurity.value || "NOPASS").toUpperCase();
+    const hotspotPassphrase = hotspotSecurity === "WPA" ? String(ui.cxHotspotPassphrase.value || "").trim() : "";
     return {
       active_device_code: String(ui.cxActiveDeviceCode.value || "").trim() || "pi-kiosk-001",
       site_strip_text: String(ui.cxSiteStripText.value || "").trim(),
@@ -477,831 +415,288 @@
         welcome_lead: String(ui.cxWelcomeLead.value || "").trim(),
         support_phone: String(ui.cxSupportPhone.value || "").trim(),
       },
-      chips: [ui.cxChip1.value, ui.cxChip2.value, ui.cxChip3.value]
-        .map((item) => String(item || "").trim())
-        .filter(Boolean),
-      theme: {
-        ...(state.customerExperience?.theme || {}),
-        brand_blue: String(ui.cxBrandBlue.value || "").trim(),
-        brand_orange: String(ui.cxBrandOrange.value || "").trim(),
-      },
-      flow: {
-        ...(state.customerExperience?.flow || {}),
-        hide_payment_method: parseBooleanInput(ui.cxHidePaymentMethod.value),
-        show_stepper: parseBooleanInput(ui.cxShowStepper.value),
-        default_payment_method: String(ui.cxDefaultPaymentMethod.value || "mpesa").toLowerCase(),
-      },
-      operations: {
-        ...(state.customerExperience?.operations || {}),
-        uploads_enabled: parseBooleanInput(ui.cxUploadsEnabled.value),
-        payments_enabled: parseBooleanInput(ui.cxPaymentsEnabled.value),
-        pause_reason: String(ui.cxPauseReason.value || "").trim(),
-        printer_unready_message: String(ui.cxPrinterUnreadyMessage.value || "").trim(),
-      },
-      hotspot: {
-        ...(state.customerExperience?.hotspot || {}),
-        enabled: parseBooleanInput(ui.cxHotspotEnabled.value),
-        ssid: String(ui.cxHotspotSsid.value || "").trim(),
-        passphrase: String(ui.cxHotspotPassphrase.value || "").trim(),
-        wifi_security: String(ui.cxHotspotSecurity.value || "WPA").toUpperCase(),
-        country: String(ui.cxHotspotCountry.value || "TZ").trim().toUpperCase(),
-        channel: Number(ui.cxHotspotChannel.value || 6),
-      },
+      chips: [ui.cxChip1.value, ui.cxChip2.value, ui.cxChip3.value].map((x) => String(x || "").trim()).filter(Boolean),
+      theme: { ...(state.customerExperience?.theme || {}), brand_blue: String(ui.cxBrandBlue.value || "").trim(), brand_orange: String(ui.cxBrandOrange.value || "").trim() },
+      flow: { ...(state.customerExperience?.flow || {}), hide_payment_method: boolVal(ui.cxHidePaymentMethod.value), show_stepper: boolVal(ui.cxShowStepper.value), default_payment_method: String(ui.cxDefaultPaymentMethod.value || "mpesa").toLowerCase() },
+      operations: { ...(state.customerExperience?.operations || {}), uploads_enabled: boolVal(ui.cxUploadsEnabled.value), payments_enabled: boolVal(ui.cxPaymentsEnabled.value), pause_reason: String(ui.cxPauseReason.value || "").trim(), printer_unready_message: String(ui.cxPrinterUnreadyMessage.value || "").trim() },
+      hotspot: { ...(state.customerExperience?.hotspot || {}), enabled: boolVal(ui.cxHotspotEnabled.value), ssid: String(ui.cxHotspotSsid.value || "").trim(), passphrase: hotspotPassphrase, wifi_security: hotspotSecurity, country: String(ui.cxHotspotCountry.value || "TZ").toUpperCase(), channel: Number(ui.cxHotspotChannel.value || 6) },
     };
   }
 
-  function applyPricingCapabilitiesToConfig(config) {
-    const payload = { ...(config || {}) };
-    const printerCapabilities = payload.printer_capabilities || {};
-    const defaults = printerCapabilities.default || {};
-    const perDevice = { ...(printerCapabilities.devices || {}) };
-    normalizeCapabilityToggles();
-    const supportsColor = parseBooleanInput(ui.pricingSupportsColor.value);
-    const supportsA3 = parseBooleanInput(ui.pricingSupportsA3.value);
-    const scopedDevice = currentDeviceScope() || String(payload.active_device_code || "").trim() || "pi-kiosk-001";
-    perDevice[scopedDevice] = {
-      color_enabled: supportsColor,
-      a3_enabled: supportsA3,
-    };
-    payload.printer_capabilities = {
-      default: {
-        color_enabled: Boolean(defaults.color_enabled !== false),
-        a3_enabled: Boolean(defaults.a3_enabled),
-      },
-      devices: perDevice,
-    };
-    if (!payload.active_device_code && scopedDevice) {
-      payload.active_device_code = scopedDevice;
-    }
-    return payload;
-  }
-
-  function setQrPreview(imgElement, value) {
-    if (!value) {
-      imgElement.removeAttribute("src");
-      return;
-    }
-    imgElement.src = `${API_BASE}/admin/qr-code?${queryString({ data: value, box_size: 8 })}`;
-  }
-
-  function renderOverviewMonitor(monitor) {
-    const devices = monitor?.devices || [];
-    if (devices.length < 1) {
-      ui.overviewDeviceMonitor.innerHTML = "<p class=\"hint\">No device telemetry available yet.</p>";
-      return;
-    }
-    const maxUptime = Math.max(1, ...devices.map((item) => Number(item.uptime_hours || 0)));
-    const maxErrors = Math.max(1, ...devices.map((item) => Number(item.error_events_24h || 0)));
-    const maxAlerts = Math.max(1, ...devices.map((item) => Number(item.active_alerts || 0)));
-    ui.overviewDeviceMonitor.innerHTML = devices.map((item) => {
-      const uptimePct = Math.min(100, Math.round((Number(item.uptime_hours || 0) / maxUptime) * 100));
-      const errorPct = Math.min(100, Math.round((Number(item.error_events_24h || 0) / maxErrors) * 100));
-      const alertPct = Math.min(100, Math.round((Number(item.active_alerts || 0) / maxAlerts) * 100));
-      return `
-        <article class="monitor-card">
-          <div class="monitor-head">
-            <span class="monitor-title">${escapeHtml(item.device_code || "-")}</span>
-            ${chip(item.printer_status || item.status || "-")}
-          </div>
-          <div class="monitor-line">
-            <p>Uptime Hours: ${escapeHtml(String(item.uptime_hours ?? 0))}</p>
-            <div class="bar-track"><div class="bar-fill" style="width:${uptimePct}%"></div></div>
-          </div>
-          <div class="monitor-line">
-            <p>Error Events (24h): ${escapeHtml(String(item.error_events_24h ?? 0))}</p>
-            <div class="bar-track"><div class="bar-fill bad" style="width:${errorPct}%"></div></div>
-          </div>
-          <div class="monitor-line">
-            <p>Active Alerts: ${escapeHtml(String(item.active_alerts ?? 0))}</p>
-            <div class="bar-track"><div class="bar-fill warn" style="width:${alertPct}%"></div></div>
-          </div>
-          <p class="monitor-meta">Last Seen: ${escapeHtml(formatDate(item.last_seen_at))}</p>
-        </article>
-      `;
-    }).join("");
-  }
-
-  async function loadOverview() {
-    const payload = await call(`/admin/dashboard/snapshot?${queryString({
-      recent_payments_limit: 50,
-      pending_incidents_limit: 10,
-      device_code: currentDeviceScope(),
-    })}`, { method: "GET" });
-    const kpis = payload.kpis || {};
-    const monitor = payload.monitor || {};
-    const monitorSummary = monitor.summary || {};
-    ui.kpiConfirmedPayments.textContent = String(kpis.confirmed_payments_today ?? 0);
-    ui.kpiConfirmedAmount.textContent = toMoney(kpis.confirmed_amount_today, payload.pricing ? payload.pricing.currency : "TZS");
-    ui.kpiPrintedJobs.textContent = String(kpis.printed_jobs_today ?? 0);
-    ui.kpiActiveDevices.textContent = String(kpis.active_devices ?? 0);
-    ui.kpiAvgUptimeHours.textContent = String(monitorSummary.avg_uptime_hours ?? 0);
-    ui.kpiErrorEvents24h.textContent = String(monitorSummary.total_error_events_24h ?? 0);
-    setRows(ui.overviewRecentPaymentsBody, paymentRowsHtml(payload.recent_payments?.items || []));
-    renderOverviewMonitor(monitor);
-  }
-
-  async function loadDevices() {
-    const includeInactive = ui.devicesIncludeInactive.checked ? "true" : "false";
-    const payload = await call(`/admin/devices?include_inactive=${includeInactive}`, { method: "GET" });
-    ensureDeviceOptions(payload.items || []);
-    const rows = (payload.items || []).map((item) => `
-      <tr>
-        <td>${escapeHtml(item.device_code)}</td>
-        <td>${escapeHtml(item.site_name || "-")}</td>
-        <td>${chip(item.status)}</td>
-        <td>${chip(item.printer_status)}</td>
-        <td>${escapeHtml([
-          item.printer_capabilities?.color_enabled ? "Color" : "BW only",
-          item.printer_capabilities?.a3_enabled ? "A3 enabled" : "A4 only",
-        ].join(" | "))}</td>
-        <td>${escapeHtml(formatDate(item.last_seen_at))}</td>
-        <td>${escapeHtml(String(item.active_alerts ?? 0))}</td>
-        <td>${escapeHtml(`T:${item.jobs.total} P:${item.jobs.printed} F:${item.jobs.failed}`)}</td>
-      </tr>
-    `).join("");
-    setRows(ui.devicesBody, rows);
-  }
-
-  function paymentsQuery() {
-    return queryString({
-      limit: ui.paymentsLimit.value || 50,
-      status: ui.paymentsStatus.value,
-      method: ui.paymentsMethod.value,
-      lifecycle: ui.paymentsLifecycle.value,
-      provider: ui.paymentsProvider.value.trim(),
-      device_code: ui.paymentsDeviceCode.value.trim() || currentDeviceScope(),
-    });
-  }
-
-  async function loadPayments() {
-    const payload = await call(`/admin/payments?${paymentsQuery()}`, { method: "GET" });
-    setRows(ui.paymentsBody, paymentRowsHtml(payload.items || []));
-  }
-
-  function incidentsQuery() {
-    return queryString({
-      limit: ui.incidentsLimit.value || 50,
-      escalated_only: ui.incidentsEscalatedOnly.value,
-      method: ui.incidentsMethod.value,
-      device_code: ui.incidentsDeviceCode.value.trim() || currentDeviceScope(),
-    });
-  }
-
-  async function loadIncidents() {
-    const payload = await call(`/admin/payments/pending-incidents?${incidentsQuery()}`, { method: "GET" });
-    const rows = (payload.items || []).map((item) => `
-      <tr>
-        <td>${escapeHtml(item.provider_request_id || "-")}</td>
-        <td>${chip(item.method)}</td>
-        <td>${chip(item.status)}</td>
-        <td>${escapeHtml(String(item.pending_minutes ?? "-"))}</td>
-        <td>${chip(item.escalated ? "escalated" : "normal")}</td>
-        <td>${escapeHtml(item.recommended_action || "-")}</td>
-      </tr>
-    `).join("");
-    setRows(ui.incidentsBody, rows);
-  }
-
-  function alertsQuery() {
-    return queryString({
-      limit: ui.alertsLimit.value || 50,
-      status: ui.alertsStatus.value,
-      severity: ui.alertsSeverity.value,
-      device_code: ui.alertsDeviceCode.value.trim() || currentDeviceScope(),
-    });
-  }
-
-  async function loadAlerts() {
-    const payload = await call(`/alerts?${alertsQuery()}`, { method: "GET" });
-    const rows = (payload.items || []).map((item) => `
-      <tr>
-        <td>${escapeHtml(formatDate(item.last_seen_at))}</td>
-        <td>${escapeHtml(item.title || "-")}</td>
-        <td>${chip(item.severity)}</td>
-        <td>${chip(item.status)}</td>
-        <td>${escapeHtml(item.device_code || "-")}</td>
-      </tr>
-    `).join("");
-    setRows(ui.alertsBody, rows);
-  }
-
-  async function loadReport() {
-    const payload = await call(`/admin/reports/today?${queryString({ device_code: currentDeviceScope() })}`, { method: "GET" });
-    const payments = payload.payments || {};
-    const jobs = payload.jobs || {};
-    const devices = payload.devices || {};
-    ui.reportPaymentsTotal.textContent = String(payments.total ?? 0);
-    ui.reportPaymentsConfirmed.textContent = String(payments.confirmed ?? 0);
-    ui.reportPaymentsPending.textContent = String(payments.pending ?? 0);
-    ui.reportPaymentsFailed.textContent = String(payments.failed ?? 0);
-    ui.reportJobsPrinted.textContent = String(jobs.printed ?? 0);
-    ui.reportJobsProgress.textContent = String(jobs.in_progress ?? 0);
-    ui.reportDevicesActive.textContent = String(devices.active ?? 0);
-    ui.reportDevicesOnline.textContent = String(devices.online ?? 0);
-  }
-
-  async function loadReportHistory() {
-    const payload = await call(`/admin/reports/history?${queryString({
-      days: Number(ui.reportHistoryDays.value || 90),
-      device_code: currentDeviceScope(),
-    })}`, { method: "GET" });
-    const rows = (payload.daily || []).map((item) => `
-      <tr>
-        <td>${escapeHtml(item.date || "-")}</td>
-        <td>${escapeHtml(`${item.payments_confirmed || 0}/${item.payments_total || 0}`)}</td>
-        <td>${escapeHtml(toMoney(item.confirmed_amount || 0, ui.pricingCurrency.value || "TZS"))}</td>
-        <td>${escapeHtml(`${item.jobs_printed || 0}/${item.jobs_total || 0}`)}</td>
-        <td>${escapeHtml(String(item.jobs_failed || 0))}</td>
-        <td>${escapeHtml(`${item.alerts_critical || 0}/${item.alerts_total || 0}`)}</td>
-      </tr>
-    `).join("");
-    setRows(ui.reportHistoryBody, rows);
-    const retention = payload.retention || {};
-    const candidates = retention.cleanup_candidates || {};
-    ui.reportRetentionPreview.textContent = [
-      `Retention: ${retention.days || 90} days`,
-      `Cutoff: ${formatDate(retention.cutoff_utc)}`,
-      `Old logs: ${candidates.logs ?? 0}`,
-      `Old resolved alerts: ${candidates.resolved_alerts ?? 0}`,
-      `Old print jobs: ${candidates.print_jobs ?? 0}`,
-      `Old payments: ${candidates.payments ?? 0}`,
-    ].join(" | ");
-  }
-
-  async function runReportCleanup(dryRun) {
-    const payload = await call(`/admin/reports/cleanup?${queryString({
-      retention_days: Number(ui.reportCleanupDays.value || 90),
-      dry_run: dryRun ? "true" : "false",
-      device_code: currentDeviceScope(),
-    })}`, { method: "POST" });
-    if (payload.status === "dry_run") {
-      const candidates = payload.delete_candidates || {};
-      setStatus(`Dry run: logs=${candidates.logs || 0}, resolved_alerts=${candidates.resolved_alerts || 0}`, "ok");
-      return;
-    }
-    const deleted = payload.deleted || {};
-    setStatus(`Cleanup complete: logs=${deleted.logs || 0}, resolved_alerts=${deleted.resolved_alerts || 0}`, "ok");
-  }
+  async function loadCX() { fillCX(await api("/admin/customer-experience", { method: "GET" })); }
+  async function saveCX() { fillCX(await api("/admin/customer-experience", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payload: cxPayload() }) })); }
 
   async function loadPricing() {
-    const payload = await call("/admin/pricing", { method: "GET" });
-    ui.pricingBw.value = payload.bw_price_per_page;
-    ui.pricingColor.value = payload.color_price_per_page;
-    ui.pricingCurrency.value = payload.currency;
-    ui.pricingPreview.textContent = `BW: ${payload.bw_price_per_page} ${payload.currency} | Color: ${payload.color_price_per_page} ${payload.currency}`;
-    if (!state.customerExperience) {
-      await loadCustomerExperience();
-    }
-    syncPricingCapabilitiesFromConfig();
+    const p = await api("/admin/pricing", { method: "GET" });
+    ui.pricingA4Bw.value = p.a4_bw_price_per_page;
+    ui.pricingA4Color.value = p.a4_color_price_per_page;
+    ui.pricingA3Bw.value = p.a3_bw_price_per_page;
+    ui.pricingA3Color.value = p.a3_color_price_per_page;
+    ui.pricingCurrency.value = p.currency;
+    if (!state.customerExperience) await loadCX();
+    setProfilesFromCaps(resolveCaps(state.customerExperience || {}, currentScope() || currentDevice()));
+    updatePricingPreview();
   }
 
   async function savePricing() {
-    const body = {
-      bw_price_per_page: Number(ui.pricingBw.value || 0),
-      color_price_per_page: Number(ui.pricingColor.value || 0),
-      currency: String(ui.pricingCurrency.value || "").trim().toUpperCase(),
-    };
-    const payload = await call("/admin/pricing", {
+    await api("/admin/pricing", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        bw_price_per_page: Number(ui.pricingA4Bw.value || 0),
+        color_price_per_page: Number(ui.pricingA4Color.value || 0),
+        a4_bw_price_per_page: Number(ui.pricingA4Bw.value || 0),
+        a4_color_price_per_page: Number(ui.pricingA4Color.value || 0),
+        a3_bw_price_per_page: Number(ui.pricingA3Bw.value || 0),
+        a3_color_price_per_page: Number(ui.pricingA3Color.value || 0),
+        currency: String(ui.pricingCurrency.value || "TZS").trim().toUpperCase(),
+      }),
     });
-    ui.pricingPreview.textContent = `BW: ${payload.bw_price_per_page} ${payload.currency} | Color: ${payload.color_price_per_page} ${payload.currency}`;
-    if (!state.customerExperience) {
-      await loadCustomerExperience();
+    if (!state.customerExperience) await loadCX();
+    const updated = { ...(state.customerExperience || {}) };
+    const pc = updated.printer_capabilities || {};
+    const dev = { ...(pc.devices || {}) };
+    dev[currentScope() || currentDevice()] = capsFromProfiles();
+    updated.printer_capabilities = { default: { color_enabled: Boolean(pc.default?.color_enabled !== false), a3_enabled: Boolean(pc.default?.a3_enabled) }, devices: dev };
+    fillCX(await api("/admin/customer-experience", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payload: updated }) }));
+  }
+
+  async function loadAvailability() {
+    const p = await api(`/admin/customer-availability?${q({ device_code: currentDevice() })}`, { method: "GET" });
+    const a = p.availability || {};
+    const c = p.printer_capabilities || {};
+    ui.customerAvailabilityPreview.textContent = [`Device: ${p.device_code || "-"}`, `Upload: ${a.can_upload ? "enabled" : "blocked"}`, `Payment: ${a.can_pay ? "enabled" : "blocked"}`, `Color: ${c.color_enabled ? "enabled" : "disabled"}`, `A3: ${c.a3_enabled ? "enabled" : "disabled"}`, `Reason: ${a.reason_code || "-"}`, `Message: ${a.message || "-"}`].join(" | ");
+  }
+
+  async function setQr(kind, img, value) {
+    const previous = state.qrObjectUrls[kind];
+    if (previous) {
+      URL.revokeObjectURL(previous);
+      state.qrObjectUrls[kind] = null;
     }
-    const updatedConfig = applyPricingCapabilitiesToConfig(state.customerExperience || {});
-    const savedConfig = await call("/admin/customer-experience", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ payload: updatedConfig }),
+    if (!value) {
+      img.removeAttribute("src");
+      return;
+    }
+    const res = await fetch(`${API_BASE}/admin/qr-code?${q({ data: value, box_size: 8 })}`, {
+      headers: { Authorization: `Bearer ${state.token}` },
     });
-    fillCustomerExperienceForm(savedConfig);
+    if (!res.ok) {
+      throw new Error(`QR image load failed (HTTP ${res.status})`);
+    }
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    state.qrObjectUrls[kind] = objectUrl;
+    img.src = objectUrl;
   }
-
-  async function runReconcile() {
-    await call("/admin/payments/reconcile?limit=100", { method: "POST" });
-  }
-
-  async function loadCustomerExperience() {
-    const payload = await call("/admin/customer-experience", { method: "GET" });
-    fillCustomerExperienceForm(payload);
-  }
-
-  async function saveCustomerExperience() {
-    const payload = customerExperiencePayloadFromForm();
-    const saved = await call("/admin/customer-experience", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ payload }),
-    });
-    fillCustomerExperienceForm(saved);
-  }
-
-  async function loadCustomerAvailability() {
-    const code = currentDeviceCode();
-    const payload = await call(`/admin/customer-availability?${queryString({ device_code: code })}`, { method: "GET" });
-    const availability = payload.availability || {};
-    const capabilities = payload.printer_capabilities || {};
-    ui.customerAvailabilityPreview.textContent = [
-      `Device: ${payload.device_code || "-"}`,
-      `Upload: ${availability.can_upload ? "enabled" : "blocked"}`,
-      `Payment: ${availability.can_pay ? "enabled" : "blocked"}`,
-      `Color: ${capabilities.color_enabled ? "enabled" : "disabled"}`,
-      `A3: ${capabilities.a3_enabled ? "enabled" : "disabled"}`,
-      `Reason: ${availability.reason_code || "-"}`,
-      `Message: ${availability.message || "-"}`,
-    ].join(" | ");
-  }
-
   async function loadQrPack() {
-    const code = currentDeviceCode();
-    const payload = await call(`/admin/devices/${encodeURIComponent(code)}/qr-pack`, { method: "GET" });
-    state.qrPack = payload;
-    ui.qrEntryUrl.value = payload.entry_url || "";
-    ui.wifiQrPayload.value = payload.wifi?.wifi_qr_payload || "";
-    setQrPreview(ui.qrPreview, ui.qrEntryUrl.value);
-    setQrPreview(ui.wifiQrPreview, ui.wifiQrPayload.value);
-    ui.qrHint.textContent = payload.notes?.join(" ") || "Print both QR codes for kiosk onboarding.";
+    const p = await api(`/admin/devices/${encodeURIComponent(currentDevice())}/qr-pack`, { method: "GET" });
+    ui.qrEntryUrl.value = p.entry_url || "";
+    ui.qrLanEntryUrl.value = p.lan_entry_url || "";
+    ui.wifiQrPayload.value = p.wifi?.wifi_qr_payload || "";
+    await setQr("customer", ui.qrPreview, ui.qrEntryUrl.value);
+    await setQr("wifi", ui.wifiQrPreview, ui.wifiQrPayload.value);
+    ui.qrHint.textContent = `${p.notes?.join(" ") || ""} Hotspot status: ${p.wifi?.active ? "active" : "inactive"}.`;
   }
 
-  async function runDeviceAction(action) {
-    const deviceCode = currentDeviceCode();
-    const body = {
-      action,
-      sudo_password: String(ui.deviceActionSudoPassword.value || ""),
-      note: String(ui.deviceActionNote.value || ""),
-      confirm_reboot: action === "reboot_device",
-    };
-    const result = await call(`/admin/devices/${encodeURIComponent(deviceCode)}/actions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (action === "pause_kiosk" || action === "resume_kiosk" || action === "apply_hotspot" || action === "disable_hotspot") {
-      await loadCustomerExperience();
-      await Promise.all([loadCustomerAvailability(), loadQrPack()]);
-    }
-    return result;
-  }
-
-  function refundsQuery() {
-    return queryString({
-      status: ui.refundStatusFilter.value.trim(),
-      payment_id: ui.refundPaymentFilter.value.trim(),
-    });
+  async function action(name) {
+    return await api(`/admin/devices/${encodeURIComponent(currentDevice())}/actions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: name, sudo_password: String(ui.deviceActionSudoPassword.value || ""), note: String(ui.deviceActionNote.value || ""), confirm_reboot: name === "reboot_device" }) });
   }
 
   async function loadRefunds() {
-    const payload = await call(`/admin/refunds?${refundsQuery()}`, { method: "GET" });
-    const rows = (payload.items || []).map((item) => {
+    const p = await api(`/admin/refunds?${q({ status: ui.refundStatusFilter.value.trim(), payment_id: ui.refundPaymentFilter.value.trim() })}`, { method: "GET" });
+    setRows(ui.refundsBody, (p.items || []).map((r) => {
       let actions = "-";
-      if (item.status === "requested") {
-        actions = `
-          <div class="inline-actions">
-            <button data-refund-action="approve" data-refund-id="${escapeHtml(item.refund_id)}" type="button">Approve</button>
-            <button data-refund-action="reject" data-refund-id="${escapeHtml(item.refund_id)}" type="button" class="danger">Reject</button>
-          </div>
-        `;
-      } else if (item.status === "approved") {
-        actions = `
-          <div class="inline-actions">
-            <button data-refund-action="execute" data-refund-id="${escapeHtml(item.refund_id)}" type="button">Execute</button>
-            <button data-refund-action="reject" data-refund-id="${escapeHtml(item.refund_id)}" type="button" class="danger">Reject</button>
-          </div>
-        `;
-      }
-      return `
-        <tr>
-          <td>${escapeHtml(item.refund_id || "-")}</td>
-          <td>${escapeHtml(item.payment_id || "-")}</td>
-          <td>${chip(item.status || "-")}</td>
-          <td>${escapeHtml(item.reason || "-")}</td>
-          <td>${escapeHtml(item.requested_by || "-")}</td>
-          <td>${escapeHtml(formatDate(item.updated_at || item.created_at))}</td>
-          <td>${actions}</td>
-        </tr>
-      `;
-    }).join("");
-    setRows(ui.refundsBody, rows);
+      if (r.status === "requested") actions = `<div class="inline-actions"><button data-refund-action="approve" data-refund-id="${esc(r.refund_id)}" type="button">Approve</button><button data-refund-action="reject" data-refund-id="${esc(r.refund_id)}" type="button" class="danger">Reject</button></div>`;
+      if (r.status === "approved") actions = `<div class="inline-actions"><button data-refund-action="execute" data-refund-id="${esc(r.refund_id)}" type="button">Execute</button><button data-refund-action="reject" data-refund-id="${esc(r.refund_id)}" type="button" class="danger">Reject</button></div>`;
+      return `<tr><td>${esc(r.refund_id || "-")}</td><td>${esc(r.payment_id || "-")}</td><td>${chip(r.status || "-")}</td><td>${esc(r.reason || "-")}</td><td>${esc(r.requested_by || "-")}</td><td>${esc(fmt(r.updated_at || r.created_at))}</td><td>${actions}</td></tr>`;
+    }).join(""));
   }
 
-  async function createRefund() {
-    const body = {
-      payment_id: String(ui.refundPaymentId.value || "").trim(),
-      reason: String(ui.refundReason.value || "").trim(),
-      requested_by: String(ui.refundRequestedBy.value || "").trim() || "operator",
-    };
-    if (!body.payment_id || !body.reason) {
-      throw new Error("Payment ID and reason are required for refund request.");
-    }
-    await call("/admin/refunds/request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  }
-
-  async function runRefundDecision(refundId, action) {
-    const body = {
-      actor: String(ui.refundActorName.value || "").trim() || "operator",
-      note: String(ui.refundDecisionNote.value || "").trim(),
-    };
-    await call(`/admin/refunds/${encodeURIComponent(refundId)}/${action}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+  async function loadUsers() {
+    const p = await api("/admin/users", { method: "GET" });
+    const isSuper = state.currentUser?.role === "super_admin";
+    setRows(
+      ui.usersBody,
+      (p.items || []).map((u) => {
+        const roleOptions = [
+          `<option value="admin" ${u.role === "admin" ? "selected" : ""}>admin</option>`,
+          `<option value="technician" ${u.role === "technician" ? "selected" : ""}>technician</option>`,
+          `<option value="monitor" ${u.role === "monitor" || u.role === "accountant" ? "selected" : ""}>monitor</option>`,
+          `<option value="super_admin" ${u.role === "super_admin" ? "selected" : ""} ${isSuper ? "" : "disabled"}>super_admin</option>`,
+        ].join("");
+        return `<tr data-user-id="${esc(u.id)}"><td><input data-user-name type="text" value="${esc(u.full_name)}"></td><td>${esc(u.email)}</td><td><select data-user-role>${roleOptions}</select></td><td><select data-user-active><option value="true" ${u.is_active ? "selected" : ""}>active</option><option value="false" ${!u.is_active ? "selected" : ""}>disabled</option></select></td><td>${esc(fmt(u.last_login_at))}</td><td><div class="inline-actions"><input data-user-password type="password" placeholder="new password"><button data-user-save type="button">Save</button></div></td></tr>`;
+      }).join(""),
+    );
   }
 
   async function refreshAll() {
-    setStatus("Refreshing dashboard...", "");
+    if (state.refreshAllInFlight) return;
+    state.refreshAllInFlight = true;
+    setStatus("Refreshing admin panels...");
     try {
-      await loadDeviceOptions();
-      await loadCustomerExperience();
-      if (!state.selectedDeviceCode) {
-        const active = String(state.customerExperience?.active_device_code || "").trim();
-        if (active && state.knownDevices.some((item) => item.device_code === active)) {
-          state.selectedDeviceCode = active;
-          ui.globalDeviceSelector.value = active;
-        }
-      }
-      await Promise.all([
-        loadOverview(),
-        loadDevices(),
-        loadPayments(),
-        loadIncidents(),
-        loadAlerts(),
-        loadReport(),
-        loadReportHistory(),
-        loadPricing(),
-        loadCustomerAvailability(),
-        loadQrPack(),
-        loadRefunds(),
-      ]);
+      await loadDevicesOptions();
+      await Promise.all([loadCX(), loadOverview(), loadDevices(), loadPayments(), loadReport(), loadReportHistory(), loadPricing(), loadAvailability(), loadQrPack(), loadRefunds()]);
+      if (canManageAdmins()) await loadUsers();
       setStatus("All admin panels refreshed.", "ok");
     } catch (err) {
       setStatus(`Refresh failed: ${err.message}`, "bad");
+    } finally {
+      state.refreshAllInFlight = false;
     }
   }
 
   function bindTabs() {
-    ui.tabs.forEach((tab) => {
-      tab.addEventListener("click", () => {
-        showView(tab.dataset.view);
-      });
+    ui.tabs.forEach((t) => t.addEventListener("click", () => showView(t.dataset.view)));
+    ui.kioskSubtabs.forEach((t) => t.addEventListener("click", () => showKiosk(t.dataset.kioskTab)));
+  }
+
+  let bound = false;
+  function bindApp() {
+    if (bound) return;
+    bound = true;
+    bindTabs();
+    showView("overview");
+    showKiosk("experience");
+    startLivePulse();
+
+    ui.logoutBtn.addEventListener("click", () => logout());
+    ui.refreshAllBtn.addEventListener("click", refreshAll);
+    ui.globalDeviceReloadBtn.addEventListener("click", async () => { try { await loadDevicesOptions(); await refreshAll(); } catch (err) { setStatus(`Device refresh failed: ${err.message}`, "bad"); } });
+    ui.globalDeviceSelector.addEventListener("change", async () => { state.selectedDeviceCode = String(ui.globalDeviceSelector.value || "").trim(); ui.deviceActionDeviceCode.value = state.selectedDeviceCode || ui.deviceActionDeviceCode.value; await refreshAll(); });
+    ui.devicesIncludeInactive.addEventListener("change", loadDevices);
+
+    ui.paymentsReloadBtn.addEventListener("click", loadPayments);
+    ui.paymentsFilters.addEventListener("submit", async (e) => { e.preventDefault(); await loadPayments(); setStatus("Payments filters applied.", "ok"); });
+
+    ui.reportsReloadBtn.addEventListener("click", loadReport);
+    ui.reportHistoryReloadBtn.addEventListener("click", loadReportHistory);
+    ui.reportHistoryFilters.addEventListener("submit", async (e) => { e.preventDefault(); await loadReportHistory(); setStatus("Report history filters applied.", "ok"); });
+    ui.reportCleanupDryRunBtn.addEventListener("click", async () => { await runCleanup(true); await loadReportHistory(); });
+    ui.reportCleanupRunBtn.addEventListener("click", async () => { if (!window.confirm("Run cleanup now?")) return; await runCleanup(false); await loadReportHistory(); });
+
+    [ui.pricingA4Bw, ui.pricingA4Color, ui.pricingA3Bw, ui.pricingA3Color, ui.pricingCurrency, ui.pricingColorProfile, ui.pricingPaperProfile].forEach((el) => el.addEventListener("change", updatePricingPreview));
+    ui.pricingReloadBtn.addEventListener("click", loadPricing);
+    ui.pricingForm.addEventListener("submit", async (e) => { e.preventDefault(); await savePricing(); await Promise.all([loadPricing(), loadOverview(), loadDevices(), loadAvailability()]); setStatus("Pricing and capabilities saved.", "ok"); });
+
+    ui.customerExperienceReloadBtn.addEventListener("click", async () => { await Promise.all([loadCX(), loadAvailability(), loadQrPack()]); setStatus("Customer controls reloaded.", "ok"); });
+    ui.customerAvailabilityReloadBtn.addEventListener("click", loadAvailability);
+    ui.cxHotspotSecurity.addEventListener("change", syncHotspotSecurityUi);
+    ui.customerExperienceForm.addEventListener("submit", async (e) => { e.preventDefault(); await saveCX(); await Promise.all([loadAvailability(), loadQrPack(), loadPricing()]); setStatus("Customer controls saved.", "ok"); });
+
+    const act = async (btn, name, msg, confirmText = "") => {
+      if (confirmText && !window.confirm(confirmText)) return;
+      btn.disabled = true;
+      try {
+        const r = await action(name);
+        setStatus(`${msg}${r.status === "failed" ? " (action failed on device)." : ""}`, r.status === "failed" ? "bad" : "ok");
+        await Promise.all([loadOverview(), loadDevices(), loadAvailability(), loadQrPack()]);
+      } catch (err) {
+        setStatus(`Device action failed: ${err.message}`, "bad");
+      } finally { btn.disabled = false; }
+    };
+
+    ui.actionPauseKioskBtn.addEventListener("click", () => act(ui.actionPauseKioskBtn, "pause_kiosk", "Kiosk paused."));
+    ui.actionResumeKioskBtn.addEventListener("click", () => act(ui.actionResumeKioskBtn, "resume_kiosk", "Kiosk resumed."));
+    ui.actionApplyHotspotBtn.addEventListener("click", () => act(ui.actionApplyHotspotBtn, "apply_hotspot", "Hotspot apply command sent."));
+    ui.actionDisableHotspotBtn.addEventListener("click", () => act(ui.actionDisableHotspotBtn, "disable_hotspot", "Hotspot disable command sent.", "Disable hotspot mode?"));
+    ui.actionRestartAgentBtn.addEventListener("click", () => act(ui.actionRestartAgentBtn, "restart_agent", "Agent restart command sent."));
+    ui.actionRestartApiBtn.addEventListener("click", () => act(ui.actionRestartApiBtn, "restart_api", "API restart command sent."));
+    ui.actionRebootDeviceBtn.addEventListener("click", () => act(ui.actionRebootDeviceBtn, "reboot_device", "Device reboot command sent.", "Reboot this device now?"));
+
+    ui.qrPackReloadBtn.addEventListener("click", loadQrPack);
+    ui.qrCopyBtn.addEventListener("click", async () => { try { await navigator.clipboard.writeText(ui.qrEntryUrl.value || ""); setStatus("Customer entry URL copied.", "ok"); } catch { setStatus("Copy failed.", "bad"); } });
+    ui.qrLanCopyBtn.addEventListener("click", async () => { try { await navigator.clipboard.writeText(ui.qrLanEntryUrl.value || ""); setStatus("LAN entry URL copied.", "ok"); } catch { setStatus("Copy failed.", "bad"); } });
+    ui.wifiCopyBtn.addEventListener("click", async () => { try { await navigator.clipboard.writeText(ui.wifiQrPayload.value || ""); setStatus("Wi-Fi QR payload copied.", "ok"); } catch { setStatus("Copy failed.", "bad"); } });
+    ui.qrOpenBtn.addEventListener("click", () => { if (ui.qrEntryUrl.value) window.open(ui.qrEntryUrl.value, "_blank", "noopener"); });
+
+    ui.refundsReloadBtn.addEventListener("click", loadRefunds);
+    ui.refundCreateForm.addEventListener("submit", async (e) => { e.preventDefault(); await api("/admin/refunds/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payment_id: ui.refundPaymentId.value.trim(), reason: ui.refundReason.value.trim(), requested_by: ui.refundRequestedBy.value.trim() || "operator" }) }); await Promise.all([loadRefunds(), loadPayments(), loadOverview()]); setStatus("Refund request created.", "ok"); });
+    ui.refundFilters.addEventListener("submit", async (e) => { e.preventDefault(); await loadRefunds(); setStatus("Refund filters applied.", "ok"); });
+    ui.refundsBody.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-refund-action]");
+      if (!btn) return;
+      btn.disabled = true;
+      try {
+        await api(`/admin/refunds/${encodeURIComponent(btn.getAttribute("data-refund-id") || "")}/${btn.getAttribute("data-refund-action") || ""}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actor: ui.refundActorName.value.trim() || "operator", note: ui.refundDecisionNote.value.trim() }) });
+        await Promise.all([loadRefunds(), loadPayments(), loadOverview()]);
+        setStatus("Refund action completed.", "ok");
+      } finally { btn.disabled = false; }
     });
-    document.querySelectorAll(".tab-jump").forEach((button) => {
-      button.addEventListener("click", () => {
-        const view = button.getAttribute("data-go-view");
-        if (!view) return;
-        showView(view);
-      });
+
+    ui.usersReloadBtn.addEventListener("click", loadUsers);
+    ui.userCreateForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await api("/admin/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ full_name: ui.userCreateName.value.trim(), email: ui.userCreateEmail.value.trim(), role: ui.userCreateRole.value, password: ui.userCreatePassword.value.trim(), is_active: true }) });
+      ui.userCreatePassword.value = "";
+      await loadUsers();
+      setStatus("Admin user created.", "ok");
+    });
+    ui.usersBody.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-user-save]");
+      if (!btn) return;
+      const row = btn.closest("tr[data-user-id]");
+      if (!row) return;
+      btn.disabled = true;
+      try {
+        await api(`/admin/users/${encodeURIComponent(row.getAttribute("data-user-id") || "")}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ full_name: row.querySelector("[data-user-name]")?.value?.trim() || undefined, role: row.querySelector("[data-user-role]")?.value || undefined, is_active: boolVal(row.querySelector("[data-user-active]")?.value), new_password: row.querySelector("[data-user-password]")?.value?.trim() || undefined }) });
+        await loadUsers();
+        setStatus("Admin user updated.", "ok");
+      } finally { btn.disabled = false; }
     });
   }
 
-  function bindEvents() {
-    ui.refreshAllBtn.addEventListener("click", refreshAll);
-
-    ui.globalDeviceReloadBtn.addEventListener("click", async () => {
+  function bindAuth() {
+    ui.showForgotBtn.addEventListener("click", () => showAuth("forgot"));
+    ui.showResetBtn.addEventListener("click", () => showAuth("reset"));
+    ui.loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setAuthStatus("Signing in...");
       try {
-        await loadDeviceOptions();
-        await Promise.all([loadOverview(), loadPayments(), loadIncidents(), loadAlerts(), loadReport(), loadReportHistory()]);
-        setStatus("Device scope list refreshed.", "ok");
+        await login(ui.loginEmail.value.trim(), ui.loginPassword.value);
+        showApp();
+        bindApp();
+        await refreshAll();
       } catch (err) {
-        setStatus(`Device scope refresh failed: ${err.message}`, "bad");
+        setAuthStatus(`Sign in failed: ${err.message}`, "bad");
       }
     });
-    ui.globalDeviceSelector.addEventListener("change", async () => {
-      state.selectedDeviceCode = String(ui.globalDeviceSelector.value || "").trim();
-      if (state.selectedDeviceCode) {
-        ui.deviceActionDeviceCode.value = state.selectedDeviceCode;
-      }
-      updatePricingCapabilityPreview();
+    ui.forgotForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
       try {
-        await Promise.all([
-          loadOverview(),
-          loadPayments(),
-          loadIncidents(),
-          loadAlerts(),
-          loadReport(),
-          loadReportHistory(),
-          loadCustomerAvailability(),
-          loadQrPack(),
-        ]);
-        syncPricingCapabilitiesFromConfig();
-        setStatus("Device scope changed.", "ok");
+        const p = await api("/admin/auth/forgot-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: ui.forgotEmail.value.trim() }) }, false);
+        setAuthStatus(`Reset request submitted.${p.preview_link ? ` Preview: ${p.preview_link}` : ""}`, "ok");
       } catch (err) {
-        setStatus(`Failed to apply device scope: ${err.message}`, "bad");
+        setAuthStatus(`Forgot password failed: ${err.message}`, "bad");
       }
     });
-
-    ui.devicesIncludeInactive.addEventListener("change", async () => {
+    ui.resetForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
       try {
-        await loadDevices();
-        setStatus("Devices reloaded.", "ok");
+        await api("/admin/auth/reset-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: ui.resetToken.value.trim(), new_password: ui.resetPassword.value }) }, false);
+        setAuthStatus("Password reset successful. Please sign in.", "ok");
       } catch (err) {
-        setStatus(`Devices reload failed: ${err.message}`, "bad");
-      }
-    });
-
-    ui.paymentsReloadBtn.addEventListener("click", async () => {
-      try {
-        await loadPayments();
-        setStatus("Payments reloaded.", "ok");
-      } catch (err) {
-        setStatus(`Payments reload failed: ${err.message}`, "bad");
-      }
-    });
-    ui.paymentsFilters.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        await loadPayments();
-        setStatus("Payments filters applied.", "ok");
-      } catch (err) {
-        setStatus(`Payments query failed: ${err.message}`, "bad");
-      }
-    });
-
-    ui.incidentsReloadBtn.addEventListener("click", async () => {
-      try {
-        await loadIncidents();
-        setStatus("Incidents reloaded.", "ok");
-      } catch (err) {
-        setStatus(`Incidents reload failed: ${err.message}`, "bad");
-      }
-    });
-    ui.incidentsFilters.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        await loadIncidents();
-        setStatus("Incident filters applied.", "ok");
-      } catch (err) {
-        setStatus(`Incidents query failed: ${err.message}`, "bad");
-      }
-    });
-    ui.reconcileBtn.addEventListener("click", async () => {
-      ui.reconcileBtn.disabled = true;
-      try {
-        await runReconcile();
-        await Promise.all([loadIncidents(), loadOverview(), loadPayments()]);
-        setStatus("Reconcile completed and incident list refreshed.", "ok");
-      } catch (err) {
-        setStatus(`Reconcile failed: ${err.message}`, "bad");
-      } finally {
-        ui.reconcileBtn.disabled = false;
-      }
-    });
-
-    ui.alertsReloadBtn.addEventListener("click", async () => {
-      try {
-        await loadAlerts();
-        setStatus("Alerts reloaded.", "ok");
-      } catch (err) {
-        setStatus(`Alerts reload failed: ${err.message}`, "bad");
-      }
-    });
-    ui.alertsFilters.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        await loadAlerts();
-        setStatus("Alert filters applied.", "ok");
-      } catch (err) {
-        setStatus(`Alerts query failed: ${err.message}`, "bad");
-      }
-    });
-
-    ui.reportsReloadBtn.addEventListener("click", async () => {
-      try {
-        await loadReport();
-        setStatus("Report reloaded.", "ok");
-      } catch (err) {
-        setStatus(`Report reload failed: ${err.message}`, "bad");
-      }
-    });
-    ui.reportHistoryReloadBtn.addEventListener("click", async () => {
-      try {
-        await loadReportHistory();
-        setStatus("Report history reloaded.", "ok");
-      } catch (err) {
-        setStatus(`Report history load failed: ${err.message}`, "bad");
-      }
-    });
-    ui.reportHistoryFilters.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        await loadReportHistory();
-        setStatus("Report history filters applied.", "ok");
-      } catch (err) {
-        setStatus(`Report history filters failed: ${err.message}`, "bad");
-      }
-    });
-    ui.reportCleanupDryRunBtn.addEventListener("click", async () => {
-      try {
-        await runReportCleanup(true);
-        await loadReportHistory();
-      } catch (err) {
-        setStatus(`Retention dry run failed: ${err.message}`, "bad");
-      }
-    });
-    ui.reportCleanupRunBtn.addEventListener("click", async () => {
-      const confirmed = window.confirm("Run cleanup now? This removes old logs and resolved alerts based on retention days.");
-      if (!confirmed) return;
-      try {
-        await runReportCleanup(false);
-        await loadReportHistory();
-      } catch (err) {
-        setStatus(`Retention cleanup failed: ${err.message}`, "bad");
-      }
-    });
-
-    ui.pricingReloadBtn.addEventListener("click", async () => {
-      try {
-        await loadPricing();
-        setStatus("Pricing and capabilities reloaded.", "ok");
-      } catch (err) {
-        setStatus(`Pricing reload failed: ${err.message}`, "bad");
-      }
-    });
-    [ui.pricingSupportsColor, ui.pricingSupportsA3, ui.pricingBwOnly, ui.pricingA4Only].forEach((el) => {
-      el.addEventListener("change", updatePricingCapabilityPreview);
-    });
-    ui.pricingForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        await savePricing();
-        await Promise.all([loadOverview(), loadDevices(), loadCustomerAvailability()]);
-        setStatus("Pricing and capability controls saved.", "ok");
-      } catch (err) {
-        setStatus(`Pricing save failed: ${err.message}`, "bad");
-      }
-    });
-
-    ui.customerExperienceReloadBtn.addEventListener("click", async () => {
-      try {
-        await loadCustomerExperience();
-        await Promise.all([loadCustomerAvailability(), loadQrPack()]);
-        setStatus("Customer controls reloaded.", "ok");
-      } catch (err) {
-        setStatus(`Customer controls reload failed: ${err.message}`, "bad");
-      }
-    });
-    ui.customerAvailabilityReloadBtn.addEventListener("click", async () => {
-      try {
-        await loadCustomerAvailability();
-        setStatus("Customer availability refreshed.", "ok");
-      } catch (err) {
-        setStatus(`Customer availability refresh failed: ${err.message}`, "bad");
-      }
-    });
-    ui.kioskSubtabSelect.addEventListener("change", () => {
-      showKioskPanel(ui.kioskSubtabSelect.value);
-    });
-    ui.cxActiveDeviceCode.addEventListener("change", () => {
-      const activeCode = String(ui.cxActiveDeviceCode.value || "").trim() || "pi-kiosk-001";
-      ui.deviceActionDeviceCode.value = activeCode;
-      ui.paymentsDeviceCode.placeholder = activeCode;
-      ui.incidentsDeviceCode.placeholder = activeCode;
-      ui.alertsDeviceCode.placeholder = activeCode;
-      syncPricingCapabilitiesFromConfig();
-    });
-    ui.customerExperienceForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        await saveCustomerExperience();
-        await Promise.all([loadCustomerAvailability(), loadQrPack(), loadPricing()]);
-        setStatus("Customer controls saved.", "ok");
-      } catch (err) {
-        setStatus(`Save customer controls failed: ${err.message}`, "bad");
-      }
-    });
-
-    const handleDeviceAction = async (button, action, successMessage) => {
-      button.disabled = true;
-      try {
-        const result = await runDeviceAction(action);
-        setStatus(`${successMessage}${result.status === "failed" ? " (action failed on device)." : ""}`, result.status === "failed" ? "bad" : "ok");
-      } catch (err) {
-        setStatus(`Device action failed: ${err.message}`, "bad");
-      } finally {
-        button.disabled = false;
-      }
-    };
-
-    ui.actionPauseKioskBtn.addEventListener("click", () => {
-      handleDeviceAction(ui.actionPauseKioskBtn, "pause_kiosk", "Kiosk paused.");
-    });
-    ui.actionResumeKioskBtn.addEventListener("click", () => {
-      handleDeviceAction(ui.actionResumeKioskBtn, "resume_kiosk", "Kiosk resumed.");
-    });
-    ui.actionApplyHotspotBtn.addEventListener("click", () => {
-      handleDeviceAction(ui.actionApplyHotspotBtn, "apply_hotspot", "Hotspot apply command sent.");
-    });
-    ui.actionDisableHotspotBtn.addEventListener("click", () => {
-      const confirmed = window.confirm("Disable hotspot mode and return to regular Wi-Fi mode?");
-      if (!confirmed) return;
-      handleDeviceAction(ui.actionDisableHotspotBtn, "disable_hotspot", "Hotspot disable command sent.");
-    });
-    ui.actionRestartAgentBtn.addEventListener("click", () => {
-      handleDeviceAction(ui.actionRestartAgentBtn, "restart_agent", "Agent restart command sent.");
-    });
-    ui.actionRestartApiBtn.addEventListener("click", () => {
-      handleDeviceAction(ui.actionRestartApiBtn, "restart_api", "API restart command sent.");
-    });
-    ui.actionRebootDeviceBtn.addEventListener("click", () => {
-      const confirmed = window.confirm("Reboot this device now?");
-      if (!confirmed) return;
-      handleDeviceAction(ui.actionRebootDeviceBtn, "reboot_device", "Device reboot command sent.");
-    });
-
-    ui.deviceActionForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-    });
-
-    ui.qrPackReloadBtn.addEventListener("click", async () => {
-      try {
-        await loadQrPack();
-        setStatus("QR pack reloaded.", "ok");
-      } catch (err) {
-        setStatus(`QR pack reload failed: ${err.message}`, "bad");
-      }
-    });
-    ui.qrCopyBtn.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(ui.qrEntryUrl.value || "");
-        setStatus("Customer entry URL copied.", "ok");
-      } catch (_err) {
-        setStatus("Copy failed. Please copy manually.", "bad");
-      }
-    });
-    ui.wifiCopyBtn.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(ui.wifiQrPayload.value || "");
-        setStatus("Wi-Fi QR payload copied.", "ok");
-      } catch (_err) {
-        setStatus("Copy failed. Please copy manually.", "bad");
-      }
-    });
-    ui.qrOpenBtn.addEventListener("click", () => {
-      if (!ui.qrEntryUrl.value) return;
-      window.open(ui.qrEntryUrl.value, "_blank", "noopener");
-    });
-
-    ui.refundsReloadBtn.addEventListener("click", async () => {
-      try {
-        await loadRefunds();
-        setStatus("Refund list reloaded.", "ok");
-      } catch (err) {
-        setStatus(`Refund list reload failed: ${err.message}`, "bad");
-      }
-    });
-    ui.refundCreateForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        await createRefund();
-        await Promise.all([loadRefunds(), loadPayments()]);
-        setStatus("Refund request created.", "ok");
-      } catch (err) {
-        setStatus(`Refund create failed: ${err.message}`, "bad");
-      }
-    });
-    ui.refundFilters.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        await loadRefunds();
-        setStatus("Refund filters applied.", "ok");
-      } catch (err) {
-        setStatus(`Refund query failed: ${err.message}`, "bad");
-      }
-    });
-    ui.refundsBody.addEventListener("click", async (event) => {
-      const button = event.target.closest("button[data-refund-action]");
-      if (!button) return;
-      const action = button.getAttribute("data-refund-action");
-      const refundId = button.getAttribute("data-refund-id");
-      if (!action || !refundId) return;
-      button.disabled = true;
-      try {
-        await runRefundDecision(refundId, action);
-        await Promise.all([loadRefunds(), loadPayments()]);
-        setStatus(`Refund ${action} completed.`, "ok");
-      } catch (err) {
-        setStatus(`Refund ${action} failed: ${err.message}`, "bad");
-      } finally {
-        button.disabled = false;
+        setAuthStatus(`Reset failed: ${err.message}`, "bad");
       }
     });
   }
 
   async function init() {
-    bindTabs();
-    bindEvents();
-    showView("overview");
-    showKioskPanel("experience");
-    await refreshAll();
+    bindAuth();
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mode") === "reset") {
+      showAuth("reset");
+      ui.resetToken.value = params.get("token") || "";
+    }
+    const ok = await restoreSession();
+    if (ok) {
+      showApp();
+      bindApp();
+      await refreshAll();
+    } else {
+      showAuth();
+    }
   }
 
-  init().catch((err) => {
-    setStatus(`Initialization failed: ${err.message}`, "bad");
-  });
+  init().catch((err) => setAuthStatus(`Initialization failed: ${err.message}`, "bad"));
 })();

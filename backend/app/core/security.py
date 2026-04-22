@@ -6,7 +6,9 @@ from passlib.context import CryptContext
 
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Keep bcrypt for backward-compatibility with any existing hashes,
+# but default new hashes to pbkdf2_sha256 to avoid bcrypt backend/runtime issues.
+pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -22,4 +24,3 @@ def create_access_token(subject: str, expires_delta_minutes: int | None = None) 
     expire = datetime.now(tz=timezone.utc) + timedelta(minutes=minutes)
     to_encode: dict[str, Any] = {"sub": subject, "exp": expire}
     return jwt.encode(to_encode, settings.secret_key, algorithm="HS256")
-

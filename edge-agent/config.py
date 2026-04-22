@@ -55,6 +55,7 @@ class AgentSettings:
     printer_name: str
     cups_lp_path: str
     cups_lpstat_path: str
+    cups_lpinfo_path: str
     storage_base_url: str
     spool_dir: Path
 
@@ -86,12 +87,13 @@ def load_settings(base_dir: Path | None = None) -> AgentSettings:
         print_complete_poll_interval_sec=max(2, _as_int(os.getenv("PRINT_COMPLETE_POLL_INTERVAL_SEC"), default=5)),
         agent_version=os.getenv("AGENT_VERSION", "0.1.0").strip() or "0.1.0",
         firmware_version=os.getenv("FIRMWARE_VERSION", "unknown").strip() or "unknown",
-        mock_print=_as_bool(os.getenv("MOCK_PRINT"), default=True),
+        mock_print=_as_bool(os.getenv("MOCK_PRINT"), default=False),
         simulate_print_seconds=max(1, _as_int(os.getenv("SIMULATE_PRINT_SECONDS"), default=4)),
         auto_discover_printer=_as_bool(os.getenv("AUTO_DISCOVER_PRINTER"), default=True),
         printer_name=os.getenv("PRINTER_NAME", "").strip(),
         cups_lp_path=os.getenv("CUPS_LP_PATH", "lp").strip() or "lp",
         cups_lpstat_path=os.getenv("CUPS_LPSTAT_PATH", "lpstat").strip() or "lpstat",
+        cups_lpinfo_path=os.getenv("CUPS_LPINFO_PATH", "lpinfo").strip() or "lpinfo",
         storage_base_url=os.getenv("STORAGE_BASE_URL", "").rstrip("/"),
         spool_dir=spool_dir,
     )

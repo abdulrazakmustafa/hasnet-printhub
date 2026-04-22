@@ -10,6 +10,7 @@ CHANNEL="6"
 GATEWAY_IP="10.55.0.1"
 DHCP_START="10.55.0.20"
 DHCP_END="10.55.0.220"
+CONNECTION_NAME="HPH-KIOSK-AP"
 
 usage() {
   cat <<'USAGE'
@@ -67,6 +68,106 @@ if [[ "$SECURITY" == "WPA" ]]; then
   fi
 fi
 
+rfkill unblock wifi || true
+
+ensure_captive_redirect() {
+  if command -v iptables >/dev/null 2>&1; then
+    iptables -t nat -C PREROUTING -i "${INTERFACE}" -p tcp --dport 80 -j REDIRECT --to-ports 8000 >/dev/null 2>&1 || \
+      iptables -t nat -A PREROUTING -i "${INTERFACE}" -p tcp --dport 80 -j REDIRECT --to-ports 8000
+    return 0
+  fi
+
+  local nft_bin=""
+  nft_bin="$(command -v nft || true)"
+  if [[ -z "${nft_bin}" && -x /usr/sbin/nft ]]; then
+    nft_bin="/usr/sbin/nft"
+  fi
+  if [[ -z "${nft_bin}" ]]; then
+    echo "No iptables/nft found; skipping captive redirect rule (HTTP 80 -> 8000)."
+    return 0
+  fi
+
+  "${nft_bin}" list table ip hph_hotspot >/dev/null 2>&1 || "${nft_bin}" add table ip hph_hotspot
+  "${nft_bin}" list chain ip hph_hotspot prerouting >/dev/null 2>&1 || \
+    "${nft_bin}" add chain ip hph_hotspot prerouting "{ type nat hook prerouting priority -100; policy accept; }"
+  "${nft_bin}" list chain ip hph_hotspot prerouting | grep -q "iifname \"${INTERFACE}\" tcp dport 80 redirect to :8000" || \
+    "${nft_bin}" add rule ip hph_hotspot prerouting iifname "${INTERFACE}" tcp dport 80 redirect to :8000
+}
+
+ensure_hotspot_isolation() {
+  # Keep kiosk AP local-only: clients can reach Pi services, but no internet routing through Pi.
+  if command -v iptables >/dev/null 2>&1; then
+    iptables -C FORWARD -i "${INTERFACE}" ! -o "${INTERFACE}" -j DROP >/dev/null 2>&1 || \
+      iptables -A FORWARD -i "${INTERFACE}" ! -o "${INTERFACE}" -j DROP
+    return 0
+  fi
+
+  local nft_bin=""
+  nft_bin="$(command -v nft || true)"
+  if [[ -z "${nft_bin}" && -x /usr/sbin/nft ]]; then
+    nft_bin="/usr/sbin/nft"
+  fi
+  if [[ -z "${nft_bin}" ]]; then
+    echo "No iptables/nft found; cannot enforce hotspot internet isolation rule."
+    return 0
+  fi
+
+  "${nft_bin}" list table ip hph_hotspot_filter >/dev/null 2>&1 || "${nft_bin}" add table ip hph_hotspot_filter
+  "${nft_bin}" list chain ip hph_hotspot_filter forward >/dev/null 2>&1 || \
+    "${nft_bin}" add chain ip hph_hotspot_filter forward "{ type filter hook forward priority 0; policy accept; }"
+  "${nft_bin}" list chain ip hph_hotspot_filter forward | grep -q "iifname \"${INTERFACE}\" oifname != \"${INTERFACE}\" drop" || \
+    "${nft_bin}" add rule ip hph_hotspot_filter forward iifname "${INTERFACE}" oifname != "${INTERFACE}" drop
+}
+
+if command -v nmcli >/dev/null 2>&1; then
+  systemctl enable NetworkManager >/dev/null 2>&1 || true
+  systemctl restart NetworkManager || true
+  nmcli radio wifi on || true
+
+  nmcli connection down "${CONNECTION_NAME}" >/dev/null 2>&1 || true
+  nmcli connection delete "${CONNECTION_NAME}" >/dev/null 2>&1 || true
+  nmcli connection down hph-kiosk-ap >/dev/null 2>&1 || true
+  nmcli connection delete hph-kiosk-ap >/dev/null 2>&1 || true
+
+  nmcli connection add \
+    type wifi \
+    ifname "${INTERFACE}" \
+    con-name "${CONNECTION_NAME}" \
+    ssid "${SSID}" >/dev/null
+
+  # Keep "shared" for DHCP; hotspot internet egress is blocked by ensure_hotspot_isolation().
+  nmcli connection modify "${CONNECTION_NAME}" \
+    connection.autoconnect yes \
+    connection.autoconnect-priority 100 \
+    802-11-wireless.mode ap \
+    802-11-wireless.band bg \
+    802-11-wireless.channel "${CHANNEL}" \
+    ipv4.method shared \
+    ipv4.addresses "${GATEWAY_IP}/24" \
+    ipv6.method ignore
+
+  if [[ "$SECURITY" == "WPA" ]]; then
+    nmcli connection modify "${CONNECTION_NAME}" \
+      wifi-sec.key-mgmt wpa-psk \
+      wifi-sec.proto rsn \
+      wifi-sec.group ccmp \
+      wifi-sec.pairwise ccmp \
+      wifi-sec.psk "${PASSPHRASE}"
+  else
+    # Keep profile open (no security) by not setting wifi-sec fields.
+    true
+  fi
+
+  nmcli connection up "${CONNECTION_NAME}" >/dev/null
+  ensure_captive_redirect || true
+  ensure_hotspot_isolation || true
+  echo "Hotspot configured successfully via NetworkManager."
+  echo "SSID: ${SSID}"
+  echo "Gateway: ${GATEWAY_IP}"
+  exit 0
+fi
+
+# Legacy fallback path for non-NetworkManager setups.
 apt-get update -y
 apt-get install -y hostapd dnsmasq
 
@@ -132,19 +233,16 @@ interface ${INTERFACE}
 EOF
 mv /etc/dhcpcd.conf.tmp /etc/dhcpcd.conf
 
-rfkill unblock wifi || true
-
-if systemctl list-unit-files | grep -q '^dhcpcd\.service'; then
-  systemctl restart dhcpcd || true
-elif systemctl list-unit-files | grep -q '^NetworkManager\.service'; then
-  nmcli connection reload || true
-  systemctl restart NetworkManager || true
-fi
+systemctl restart dhcpcd || true
 systemctl restart dnsmasq
 systemctl enable dnsmasq
 systemctl restart hostapd
 systemctl enable hostapd
 
-echo "Hotspot configured successfully."
+# Captive portal redirect for legacy hostapd/dnsmasq path as well.
+ensure_captive_redirect || true
+ensure_hotspot_isolation || true
+
+echo "Hotspot configured successfully via hostapd/dnsmasq fallback."
 echo "SSID: ${SSID}"
 echo "Gateway: ${GATEWAY_IP}"

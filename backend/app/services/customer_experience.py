@@ -31,16 +31,16 @@ DEFAULT_CUSTOMER_EXPERIENCE_CONFIG: dict[str, Any] = {
     "site_strip_text": "Driven by Innovation, Powered by Engineering! Enginnovation",
     "theme": {
         "brand_blue": "#272365",
-        "brand_blue_2": "#1e1a54",
+        "brand_blue_2": "#1a2d6e",
         "brand_orange": "#f47c20",
-        "brand_orange_2": "#ff9a3d",
-        "paper": "#f3f4f8",
-        "surface": "#ffffff",
-        "ink": "#1c2240",
-        "ink_soft": "#5a6284",
+        "brand_orange_2": "#f47c20",
+        "paper": "#05070f",
+        "surface": "#0d1426",
+        "ink": "#ecf2ff",
+        "ink_soft": "#9aabd1",
     },
     "content": {
-        "brand_title": "PrintHub",
+        "brand_title": "Hasnet PrintHub",
         "brand_note": "Simple, secure, and fast self-service printing kiosk.",
         "welcome_title": "Karibu Hasnet PrintHub",
         "welcome_lead": "Upload your PDF document and follow simple steps to complete your print.",
@@ -73,7 +73,7 @@ DEFAULT_CUSTOMER_EXPERIENCE_CONFIG: dict[str, Any] = {
         "interface": "wlan0",
         "ssid": "HPH-KIOSK-001",
         "passphrase": "",
-        "wifi_security": "WPA",
+        "wifi_security": "NOPASS",
         "country": "TZ",
         "channel": 6,
         "gateway_ip": "10.55.0.1",
@@ -304,7 +304,7 @@ def sanitize_customer_experience_config(payload: dict[str, Any] | None) -> dict[
         default=defaults["hotspot"]["wifi_security"],
         max_len=10,
     ).upper()
-    out["hotspot"]["wifi_security"] = security if security in {"WPA", "NOPASS"} else "WPA"
+    out["hotspot"]["wifi_security"] = security if security in {"WPA", "NOPASS"} else "NOPASS"
     out["hotspot"]["country"] = _safe_text(
         source_hotspot.get("country"),
         default=defaults["hotspot"]["country"],
