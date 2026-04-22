@@ -34,17 +34,19 @@ DEFAULT_CUSTOMER_EXPERIENCE_CONFIG: dict[str, Any] = {
         "brand_blue_2": "#1a2d6e",
         "brand_orange": "#f47c20",
         "brand_orange_2": "#f47c20",
-        "paper": "#05070f",
-        "surface": "#0d1426",
-        "ink": "#ecf2ff",
-        "ink_soft": "#9aabd1",
+        "paper": "#f4f8ff",
+        "surface": "#ffffff",
+        "ink": "#173269",
+        "ink_soft": "#3f5f98",
     },
     "content": {
         "brand_title": "Hasnet PrintHub",
         "brand_note": "Simple, secure, and fast self-service printing kiosk.",
         "welcome_title": "Karibu Hasnet PrintHub",
         "welcome_lead": "Upload your PDF document and follow simple steps to complete your print.",
+        "support_company": "Hasnet ICT Solution",
         "support_phone": "+255 777 019 901",
+        "support_website": "https://hasnet.co.tz",
         "payment_title": "Payment Details",
         "payment_lead": "Enter details and tap Pay to Print.",
         "finish_success_title": "Printing Successful",
@@ -202,6 +204,16 @@ def sanitize_customer_experience_config(payload: dict[str, Any] | None) -> dict[
         source_content.get("support_phone"),
         default=defaults["content"]["support_phone"],
         max_len=40,
+    )
+    out["content"]["support_company"] = _safe_text(
+        source_content.get("support_company"),
+        default=defaults["content"]["support_company"],
+        max_len=80,
+    )
+    out["content"]["support_website"] = _safe_text(
+        source_content.get("support_website"),
+        default=defaults["content"]["support_website"],
+        max_len=140,
     )
     out["content"]["payment_title"] = _safe_text(
         source_content.get("payment_title"),

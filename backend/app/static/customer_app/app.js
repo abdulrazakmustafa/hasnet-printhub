@@ -70,6 +70,10 @@
     paymentSectionTitle: $("paymentSectionTitle"),
     paymentSectionLead: $("paymentSectionLead"),
     supportPhone: $("supportPhone"),
+    supportCompany: $("supportCompany"),
+    supportPhoneFooter: $("supportPhoneFooter"),
+    supportPhoneLink: $("supportPhoneLink"),
+    supportWebsiteLink: $("supportWebsiteLink"),
     paymentMethodTile: $("paymentMethodTile"),
     paymentMethodLabel: $("paymentMethodLabel"),
 
@@ -408,6 +412,12 @@
     const flow = cfg.flow || {};
     const resolvedPrinterCapabilities = payload.printer_capabilities || resolvePrinterCapabilities(cfg, state.deviceCode);
     const siteStripText = String(cfg.site_strip_text || "").trim();
+    const supportCompany = String(content.support_company || "Hasnet ICT Solution").trim() || "Hasnet ICT Solution";
+    const supportPhone = String(content.support_phone || "+255 777 019 901").trim() || "+255 777 019 901";
+    const supportWebsiteRaw = String(content.support_website || "https://hasnet.co.tz").trim() || "https://hasnet.co.tz";
+    const supportWebsite = /^https?:\/\//i.test(supportWebsiteRaw) ? supportWebsiteRaw : `https://${supportWebsiteRaw}`;
+    const supportWebsiteLabel = supportWebsite.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    const telHref = `tel:${supportPhone.replace(/[^\d+]/g, "")}`;
 
     applyTheme(theme);
     if (siteStripText) ui.siteStrip.textContent = siteStripText;
@@ -417,7 +427,12 @@
     ui.welcomeLead.textContent = content.welcome_lead || "Upload your PDF document and follow simple steps to complete your print.";
     ui.paymentSectionTitle.textContent = content.payment_title || "Payment Details";
     ui.paymentSectionLead.innerHTML = escapeHtml(content.payment_lead || "Enter details and tap Pay to Print.");
-    ui.supportPhone.textContent = content.support_phone || "+255 777 019 901";
+    ui.supportPhone.textContent = supportPhone;
+    ui.supportCompany.textContent = supportCompany;
+    ui.supportPhoneFooter.textContent = supportPhone;
+    ui.supportPhoneLink.href = telHref;
+    ui.supportWebsiteLink.href = supportWebsite;
+    ui.supportWebsiteLink.textContent = supportWebsiteLabel;
 
     renderTrustChips(cfg.chips);
 

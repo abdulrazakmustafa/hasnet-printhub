@@ -1,15 +1,15 @@
 ﻿@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
 
 :root {
-  --bg: #040a1f;
-  --bg-2: #0a1536;
-  --panel: #0b183e;
-  --panel-2: #102556;
-  --line: #24458f;
-  --line-soft: #2f5cb6;
-  --text: #eaf0ff;
-  --text-dim: #95a2c4;
-  --blue: #2a5fd1;
+  --bg: #07173b;
+  --bg-2: #0d2458;
+  --panel: #0f2a66;
+  --panel-2: #16387d;
+  --line: #2d57a8;
+  --line-soft: #3e6fcb;
+  --text: #f3f7ff;
+  --text-dim: #b8c9ec;
+  --blue: #1f4fbf;
   --orange: #f47c20;
 }
 
@@ -21,7 +21,7 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  background: radial-gradient(circle at 15% 5%, #112a67 0%, #071334 42%, #050a1f 100%);
+  background: var(--bg);
   color: var(--text);
   font-family: "Space Grotesk", "Trebuchet MS", sans-serif;
 }
@@ -67,11 +67,11 @@ body {
 }
 
 .auth-card {
-  background: linear-gradient(180deg, rgba(16, 21, 38, 0.96), rgba(9, 13, 24, 0.96));
+  background: #0f285f;
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 0.9rem;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 16px 32px rgba(10, 24, 58, 0.32);
 }
 
 .auth-switch {
@@ -126,13 +126,13 @@ button {
 }
 
 button:hover {
-  background: #3f74ff;
+  background: #2f63d8;
 }
 
 button.ghost {
-  background: rgba(20, 27, 45, 0.85);
+  background: #123373;
   border-color: var(--line-soft);
-  color: #ced8f6;
+  color: #e8f0ff;
 }
 
 button.danger {
@@ -151,7 +151,7 @@ button.full {
 
 .sidebar {
   border-right: 1px solid #151d32;
-  background: linear-gradient(180deg, rgba(8, 12, 22, 0.97), rgba(6, 10, 18, 0.97));
+  background: #081c47;
   display: flex;
   flex-direction: column;
   padding: 0.8rem 0.6rem;
@@ -228,7 +228,7 @@ button.full {
 .topbar {
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(13, 18, 33, 0.95), rgba(10, 15, 27, 0.95));
+  background: #0d255c;
   padding: 0.8rem;
   display: flex;
   justify-content: space-between;
@@ -277,7 +277,7 @@ button.full {
   border: 1px solid #1d2741;
   border-radius: 12px;
   padding: 0.6rem;
-  background: linear-gradient(180deg, rgba(12, 18, 33, 0.9), rgba(9, 14, 25, 0.9));
+  background: #0d255c;
   position: relative;
   overflow: hidden;
 }
@@ -289,7 +289,7 @@ button.full {
   right: 0;
   bottom: 0;
   height: 2px;
-  background: linear-gradient(90deg, rgba(42, 95, 209, 0.95), rgba(244, 124, 32, 0.95));
+  background: var(--orange);
 }
 
 .kpi p {
@@ -308,7 +308,7 @@ button.full {
   margin-top: 0.68rem;
   border: 1px solid #1d2741;
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(11, 17, 31, 0.94), rgba(8, 12, 23, 0.96));
+  background: #0c2255;
   padding: 0.78rem;
 }
 
@@ -440,7 +440,7 @@ th {
   border: 1px solid #1f2b49;
   border-radius: 12px;
   padding: 0.45rem;
-  background: linear-gradient(180deg, rgba(8, 12, 22, 0.95), rgba(7, 10, 18, 0.95));
+  background: #0c2255;
 }
 
 .chart-card p {
@@ -465,7 +465,7 @@ th {
   border: 1px solid #1f2b49;
   border-radius: 11px;
   padding: 0.54rem;
-  background: linear-gradient(180deg, rgba(9, 14, 25, 0.94), rgba(7, 11, 20, 0.95));
+  background: #0c2255;
 }
 
 .monitor-title {
