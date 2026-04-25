@@ -5,6 +5,7 @@
     blue: "#27235f",
     white: "#fff",
     orange: "#f47227",
+    text: "#2c2c2c",
   };
   const $ = (id) => document.getElementById(id);
 
@@ -50,7 +51,7 @@
   ui.kioskPanels = document.querySelectorAll("[data-kiosk-panel]");
 
   const setTone = (el, tone) => {
-    el.style.color = tone === "bad" ? PALETTE.orange : PALETTE.white;
+    el.style.color = tone === "bad" ? PALETTE.orange : tone === "ok" ? PALETTE.blue : PALETTE.text;
   };
   const setAuthStatus = (message, tone = "") => { ui.authStatus.textContent = message || ""; setTone(ui.authStatus, tone); };
   const setStatus = (message, tone = "") => { ui.status.textContent = message || ""; setTone(ui.status, tone); };
@@ -224,7 +225,7 @@
     const [cx, cy] = end.split(",");
     const area = `${points} ${w},${h} 0,${h}`;
     const gridLines = [16, 32, 48, 64, 80]
-      .map((y) => `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="rgba(255, 255, 255, 0.18)" stroke-width="1"></line>`)
+      .map((y) => `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="rgba(39, 35, 95, 0.18)" stroke-width="1"></line>`)
       .join("");
     svg.innerHTML = `
       ${gridLines}
@@ -287,7 +288,7 @@
     pushTrend("alerts", s.total_active_alerts || 0);
     drawTrend(ui.uptimeChart, state.chartHistory.uptime, PALETTE.blue);
     drawTrend(ui.errorChart, state.chartHistory.errors, PALETTE.orange);
-    drawTrend(ui.alertChart, state.chartHistory.alerts, PALETTE.white);
+    drawTrend(ui.alertChart, state.chartHistory.alerts, PALETTE.blue);
   }
 
   async function loadDevices() {

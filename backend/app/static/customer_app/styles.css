@@ -7,8 +7,8 @@
   --brand-orange-2: #f47227;
   --paper: #fff;
   --surface: #fff;
-  --ink: #27235f;
-  --ink-soft: #27235f;
+  --ink: #2c2c2c;
+  --ink-soft: #2c2c2c;
   --line: #27235f;
   --ok: #27235f;
   --warn: #f47227;
@@ -69,7 +69,7 @@ body {
   margin: 0;
   font-size: 1.8rem;
   letter-spacing: 0.02em;
-  color: var(--ink);
+  color: #27235f;
 }
 
 .brand-note {
@@ -98,7 +98,7 @@ body {
   width: 20%;
   height: 100%;
   border-radius: inherit;
-  background: var(--brand-orange);
+  background: var(--brand-blue);
   transition: width 220ms ease;
 }
 
@@ -137,9 +137,9 @@ body {
 }
 
 .stepper li.done {
-  border-color: #27235f;
+  border-color: #2c2c2c;
   background: #fff;
-  color: #27235f;
+  color: #2c2c2c;
 }
 
 .kiosk-shell.stepper-hidden .stepper {
@@ -208,7 +208,7 @@ h2 {
   border-radius: 999px;
   padding: 0.28rem 0.56rem;
   font-size: 0.79rem;
-  color: #27235f;
+  color: #2c2c2c;
   background: #fff;
 }
 
@@ -245,7 +245,7 @@ h2 {
 .upload-box label {
   display: block;
   margin-bottom: 0.36rem;
-  color: #27235f;
+  color: #2c2c2c;
   font-weight: 600;
 }
 
@@ -268,7 +268,7 @@ select {
 input:focus,
 select:focus {
   outline: none;
-  border-color: var(--brand-blue);
+  border-color: #27235f;
   box-shadow: 0 0 0 2px rgba(39, 35, 95, 0.18);
 }
 
@@ -279,15 +279,24 @@ button {
   cursor: pointer;
 }
 
+button:hover:not(:disabled) {
+  background: #f47227;
+}
+
 .btn-primary {
   color: #fff;
   background: var(--brand-blue);
 }
 
 .btn-ghost {
-  color: var(--brand-blue);
+  color: #27235f;
   border: 1px solid #27235f;
   background: #fff;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: #fff;
+  border-color: #f47227;
 }
 
 .btn:disabled,
@@ -309,7 +318,7 @@ button:disabled {
 .field label {
   display: block;
   margin-bottom: 0.3rem;
-  color: #27235f;
+  color: #2c2c2c;
   font-weight: 700;
 }
 
@@ -326,14 +335,14 @@ button:disabled {
 
 .info-tile .label {
   display: block;
-  color: #27235f;
+  color: #2c2c2c;
   font-size: 0.84rem;
 }
 
 .info-tile strong {
   display: block;
   margin-top: 0.2rem;
-  color: #27235f;
+  color: #2c2c2c;
 }
 
 .mode-group {
@@ -411,7 +420,7 @@ button:disabled {
 .feedback {
   margin-top: 0.75rem;
   min-height: 1.25rem;
-  color: #27235f;
+  color: #2c2c2c;
   font-weight: 700;
 }
 
@@ -448,7 +457,7 @@ button:disabled {
 
 .support {
   margin: 0.9rem 0 0;
-  color: #27235f;
+  color: #2c2c2c;
 }
 
 .support-footer {
@@ -462,19 +471,19 @@ button:disabled {
 
 .support-company {
   margin: 0;
-  color: #27235f;
+  color: #2c2c2c;
   font-size: 0.95rem;
   font-weight: 800;
 }
 
 .support-line {
   margin: 0.32rem 0 0;
-  color: #27235f;
+  color: #2c2c2c;
   font-size: 0.88rem;
 }
 
 .support-line a {
-  color: var(--brand-blue);
+  color: #27235f;
   text-decoration: none;
   font-weight: 700;
 }
@@ -491,7 +500,7 @@ button:disabled {
   border: 1px solid #27235f;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.95);
-  color: #27235f;
+  color: #2c2c2c;
   padding: 0.4rem 0.5rem;
   font-size: 0.74rem;
   font-weight: 700;
@@ -605,4 +614,5 @@ button:disabled {
     transform: translateY(0);
   }
 }
+
 
