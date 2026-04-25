@@ -38,6 +38,11 @@ _PRINTER_ALERT_MAP: dict[str, tuple[AlertType, AlertSeverity, str]] = {
     "paused": (AlertType.printer_error, AlertSeverity.warning, "Printer is paused"),
     "unknown": (AlertType.printer_error, AlertSeverity.warning, "Printer status is unknown"),
 }
+_ALERT_SEVERITY_RANK: dict[AlertSeverity, int] = {
+    AlertSeverity.info: 0,
+    AlertSeverity.warning: 1,
+    AlertSeverity.critical: 2,
+}
 
 
 def _safe_text(value: str | None, limit: int = 260) -> str:
@@ -51,11 +56,91 @@ def _alert_dedupe_key(device_code: str, alert_type: AlertType) -> str:
     return f"{device_code}:{alert_type.value}"
 
 
+def _normalize_level_pct(value: int | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed < 0:
+        return None
+    return min(parsed, 100)
+
+
+def _merge_active_alert_specs(
+    specs: list[tuple[AlertType, AlertSeverity, str, str]],
+) -> list[tuple[AlertType, AlertSeverity, str, str]]:
+    merged: dict[AlertType, tuple[AlertSeverity, str, str]] = {}
+    for alert_type, severity, title, description in specs:
+        current = merged.get(alert_type)
+        if current is None:
+            merged[alert_type] = (severity, title, description)
+            continue
+        current_severity, current_title, current_description = current
+        if _ALERT_SEVERITY_RANK[severity] > _ALERT_SEVERITY_RANK[current_severity]:
+            merged[alert_type] = (severity, title, description)
+            continue
+        if _ALERT_SEVERITY_RANK[severity] == _ALERT_SEVERITY_RANK[current_severity]:
+            merged[alert_type] = (
+                current_severity,
+                title if len(title) >= len(current_title) else current_title,
+                description if len(description) >= len(current_description) else current_description,
+            )
+    return [(alert_type, *payload) for alert_type, payload in merged.items()]
+
+
+def _append_recent_error_event(
+    *,
+    metadata: dict[str, object],
+    payload: DeviceHeartbeatRequest,
+    now_utc: datetime,
+    max_items: int = 25,
+) -> None:
+    history_raw = metadata.get("recent_errors")
+    history = history_raw if isinstance(history_raw, list) else []
+    safe_error = _safe_text(payload.active_error, limit=280) or None
+    printer_status = str(payload.printer_status or "").strip().lower()
+    signature = f"{printer_status}|{safe_error or ''}".strip("|")
+    last_signature = ""
+    if history and isinstance(history[-1], dict):
+        last_signature = str(history[-1].get("signature") or "")
+
+    should_append = bool(safe_error) or printer_status in {
+        "offline",
+        "paper_out",
+        "paper_jam",
+        "paused",
+        "error",
+        "queue_stuck",
+        "low_toner",
+        "cover_open",
+        "unknown",
+    }
+    if should_append and signature and signature != last_signature:
+        history.append(
+            {
+                "at": now_utc.isoformat(),
+                "printer_status": printer_status or None,
+                "active_error": safe_error,
+                "details": _safe_text(payload.printer_details, limit=600) or None,
+                "signature": signature,
+            }
+        )
+    metadata["recent_errors"] = history[-max_items:]
+
+
 def _build_active_alert_specs(payload: DeviceHeartbeatRequest) -> list[tuple[AlertType, AlertSeverity, str, str]]:
     specs: list[tuple[AlertType, AlertSeverity, str, str]] = []
     device_status = str(payload.status or "").strip().lower()
     printer_status = str(payload.printer_status or "").strip().lower()
     details = _safe_text(payload.printer_details or payload.active_error or "")
+    paper_level = _normalize_level_pct(payload.paper_level_pct)
+    toner_level = _normalize_level_pct(payload.toner_level_pct)
+    ink_level = _normalize_level_pct(payload.ink_level_pct)
+    paper_threshold = _normalize_level_pct(settings.alert_low_paper_pct) or 0
+    toner_threshold = _normalize_level_pct(settings.alert_low_toner_pct) or 0
+    ink_threshold = _normalize_level_pct(settings.alert_low_ink_pct) or 0
 
     if device_status in {"offline", "maintenance"}:
         title = f"Device status is {device_status}"
@@ -66,7 +151,47 @@ def _build_active_alert_specs(payload: DeviceHeartbeatRequest) -> list[tuple[Ale
         alert_type, severity, title = printer_meta
         specs.append((alert_type, severity, title, details or title))
 
-    return specs
+    if paper_level is not None and paper_level <= paper_threshold:
+        if paper_level <= 0:
+            specs.append(
+                (
+                    AlertType.paper_out,
+                    AlertSeverity.critical,
+                    "Printer paper is empty",
+                    f"Paper level reported at {paper_level}%.",
+                )
+            )
+        else:
+            specs.append(
+                (
+                    AlertType.paper_out,
+                    AlertSeverity.warning,
+                    f"Paper level is low ({paper_level}%)",
+                    f"Paper level crossed threshold ({paper_threshold}%).",
+                )
+            )
+
+    if toner_level is not None and toner_level <= toner_threshold:
+        specs.append(
+            (
+                AlertType.printer_error,
+                AlertSeverity.warning if toner_level > 0 else AlertSeverity.critical,
+                "Toner level is low" if toner_level > 0 else "Toner is empty",
+                f"Toner level reported at {toner_level}% (threshold {toner_threshold}%).",
+            )
+        )
+
+    if ink_level is not None and ink_level <= ink_threshold:
+        specs.append(
+            (
+                AlertType.printer_error,
+                AlertSeverity.warning if ink_level > 0 else AlertSeverity.critical,
+                "Ink level is low" if ink_level > 0 else "Ink is empty",
+                f"Ink level reported at {ink_level}% (threshold {ink_threshold}%).",
+            )
+        )
+
+    return _merge_active_alert_specs(specs)
 
 
 def _renotify_due(last_notified_at: datetime | None, now_utc: datetime) -> bool:
@@ -206,6 +331,9 @@ def device_heartbeat(
     payload: DeviceHeartbeatRequest, db: Session = Depends(get_db)
 ) -> DeviceHeartbeatResponse:
     now = payload.timestamp or datetime.now(timezone.utc)
+    normalized_paper_level = _normalize_level_pct(payload.paper_level_pct)
+    normalized_toner_level = _normalize_level_pct(payload.toner_level_pct)
+    normalized_ink_level = _normalize_level_pct(payload.ink_level_pct)
     device = db.execute(select(Device).where(Device.device_code == payload.device_code)).scalar_one_or_none()
     if device is None:
         device = Device(
@@ -250,11 +378,12 @@ def device_heartbeat(
     metadata["last_heartbeat"] = {
         "printer_details": _safe_text(payload.printer_details, limit=1200) or None,
         "active_error": _safe_text(payload.active_error, limit=280) or None,
-        "paper_level_pct": payload.paper_level_pct,
-        "toner_level_pct": payload.toner_level_pct,
-        "ink_level_pct": payload.ink_level_pct,
+        "paper_level_pct": normalized_paper_level,
+        "toner_level_pct": normalized_toner_level,
+        "ink_level_pct": normalized_ink_level,
         "received_at": now.isoformat(),
     }
+    _append_recent_error_event(metadata=metadata, payload=payload, now_utc=now)
     device.metadata_json = metadata
     _upsert_device_alerts(db=db, device=device, payload=payload, now_utc=now)
 
@@ -272,6 +401,9 @@ def device_heartbeat(
                 "printer_name": payload.printer_name,
                 "printer_details": payload.printer_details,
                 "active_error": payload.active_error,
+                "paper_level_pct": normalized_paper_level,
+                "toner_level_pct": normalized_toner_level,
+                "ink_level_pct": normalized_ink_level,
                 "uptime_seconds": payload.uptime_seconds,
                 "boot_started_at": payload.boot_started_at.isoformat() if payload.boot_started_at else None,
                 "local_ip": payload.local_ip,

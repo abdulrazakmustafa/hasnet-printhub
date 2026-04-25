@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     smtp_from: str = ""
 
     alert_renotify_minutes: int = 30
+    alert_low_paper_pct: int = 15
+    alert_low_toner_pct: int = 15
+    alert_low_ink_pct: int = 15
     device_offline_seconds: int = 120
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
@@ -106,6 +109,13 @@ class Settings(BaseSettings):
     def validate_admin_password_reset_token_minutes(cls, value: int) -> int:
         if value < 5 or value > 24 * 60:
             raise ValueError("ADMIN_PASSWORD_RESET_TOKEN_MINUTES must be between 5 and 1440.")
+        return value
+
+    @field_validator("alert_low_paper_pct", "alert_low_toner_pct", "alert_low_ink_pct")
+    @classmethod
+    def validate_alert_level_thresholds(cls, value: int) -> int:
+        if value < 0 or value > 100:
+            raise ValueError("Alert level thresholds must be between 0 and 100.")
         return value
 
 

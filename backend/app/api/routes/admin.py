@@ -370,6 +370,8 @@ def _build_device_monitor(db: Session, device_code: str | None) -> dict[str, Any
             if isinstance(metadata.get("last_heartbeat"), dict)
             else {}
         )
+        recent_errors_raw = metadata.get("recent_errors")
+        recent_errors = recent_errors_raw if isinstance(recent_errors_raw, list) else []
 
         items.append(
             {
@@ -387,6 +389,7 @@ def _build_device_monitor(db: Session, device_code: str | None) -> dict[str, Any
                 "paper_level_pct": heartbeat_meta.get("paper_level_pct"),
                 "toner_level_pct": heartbeat_meta.get("toner_level_pct"),
                 "ink_level_pct": heartbeat_meta.get("ink_level_pct"),
+                "recent_errors": recent_errors[-5:],
             }
         )
 

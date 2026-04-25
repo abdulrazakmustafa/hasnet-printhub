@@ -19,12 +19,20 @@ class DeviceSnapshot:
     local_ip: str | None
     details: str
     active_error: str | None
+    paper_level_pct: int | None
+    toner_level_pct: int | None
+    ink_level_pct: int | None
     uptime_seconds: int | None
     boot_started_at: str | None
 
 
 _DEFAULT_DEST_RE = re.compile(r"system default destination:\s*(?P<name>[^\s]+)", re.IGNORECASE)
 _DEVICE_FOR_RE = re.compile(r"device for (?P<name>[^:]+):\s*(?P<uri>\S+)", re.IGNORECASE)
+_CONSUMABLE_VALUE_RE = re.compile(
+    r"(?P<label>[a-z0-9._\-/ ]*(?:paper|media|tray|toner|ink|marker)[a-z0-9._\-/ ]*)\s*[:=]\s*(?P<value>\d{1,3})\s*%?",
+    re.IGNORECASE,
+)
+_MARKER_LEVEL_LIST_RE = re.compile(r"\bmarker-levels?\s*[:=]\s*(?P<values>\d{1,3}(?:\s*,\s*\d{1,3})+)", re.IGNORECASE)
 
 
 def detect_local_ip() -> str | None:
@@ -90,6 +98,57 @@ def _active_error_from_status(printer_status: str, details: str) -> str | None:
     if not text:
         return f"printer_status={printer_status}"
     return f"{printer_status}: {text}"
+
+
+def _normalize_pct(raw_value: str | int | None) -> int | None:
+    try:
+        parsed = int(raw_value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if parsed < 0:
+        return None
+    if parsed > 100:
+        return 100
+    return parsed
+
+
+def _consumable_key_from_label(label: str) -> str | None:
+    normalized = str(label or "").strip().lower()
+    if not normalized:
+        return None
+    if any(token in normalized for token in ("paper", "tray", "media")):
+        return "paper"
+    if "ink" in normalized:
+        return "ink"
+    if any(token in normalized for token in ("toner", "marker")):
+        return "toner"
+    return None
+
+
+def _extract_consumable_levels(details: str) -> tuple[int | None, int | None, int | None]:
+    text = str(details or "")
+    found: dict[str, list[int]] = {"paper": [], "toner": [], "ink": []}
+
+    for match in _CONSUMABLE_VALUE_RE.finditer(text):
+        key = _consumable_key_from_label(match.group("label"))
+        if key is None:
+            continue
+        normalized = _normalize_pct(match.group("value"))
+        if normalized is None:
+            continue
+        found[key].append(normalized)
+
+    for match in _MARKER_LEVEL_LIST_RE.finditer(text):
+        raw_values = [item.strip() for item in str(match.group("values") or "").split(",")]
+        parsed_values = [value for value in (_normalize_pct(item) for item in raw_values) if value is not None]
+        if parsed_values:
+            found["toner"].append(min(parsed_values))
+
+    return (
+        min(found["paper"]) if found["paper"] else None,
+        min(found["toner"]) if found["toner"] else None,
+        min(found["ink"]) if found["ink"] else None,
+    )
 
 
 def _extract_default_destination(output: str) -> str | None:
@@ -247,6 +306,9 @@ def read_device_snapshot(settings: AgentSettings) -> DeviceSnapshot:
             local_ip=local_ip,
             details="MOCK_PRINT=true (simulation mode; real printer telemetry disabled)",
             active_error="mock_mode_enabled",
+            paper_level_pct=None,
+            toner_level_pct=None,
+            ink_level_pct=None,
             uptime_seconds=uptime_seconds,
             boot_started_at=boot_started_at,
         )
@@ -260,6 +322,9 @@ def read_device_snapshot(settings: AgentSettings) -> DeviceSnapshot:
             local_ip=local_ip,
             details="No printer is configured or discoverable from CUPS.",
             active_error="offline: no printer connected",
+            paper_level_pct=None,
+            toner_level_pct=None,
+            ink_level_pct=None,
             uptime_seconds=uptime_seconds,
             boot_started_at=boot_started_at,
         )
@@ -286,6 +351,9 @@ def read_device_snapshot(settings: AgentSettings) -> DeviceSnapshot:
             local_ip=local_ip,
             details=f"Command not found: {settings.cups_lpstat_path}",
             active_error=f"unknown: command not found ({settings.cups_lpstat_path})",
+            paper_level_pct=None,
+            toner_level_pct=None,
+            ink_level_pct=None,
             uptime_seconds=uptime_seconds,
             boot_started_at=boot_started_at,
         )
@@ -297,6 +365,9 @@ def read_device_snapshot(settings: AgentSettings) -> DeviceSnapshot:
             local_ip=local_ip,
             details=f"lpstat check failed: {exc}",
             active_error=f"unknown: lpstat check failed ({exc})",
+            paper_level_pct=None,
+            toner_level_pct=None,
+            ink_level_pct=None,
             uptime_seconds=uptime_seconds,
             boot_started_at=boot_started_at,
         )
@@ -310,6 +381,9 @@ def read_device_snapshot(settings: AgentSettings) -> DeviceSnapshot:
             local_ip=local_ip,
             details=out.strip() or f"lpstat exited with {result.returncode}",
             active_error=f"unknown: {out.strip() or f'lpstat exited with {result.returncode}'}",
+            paper_level_pct=None,
+            toner_level_pct=None,
+            ink_level_pct=None,
             uptime_seconds=uptime_seconds,
             boot_started_at=boot_started_at,
         )
@@ -325,6 +399,7 @@ def read_device_snapshot(settings: AgentSettings) -> DeviceSnapshot:
         status = "offline"
         printer_status = "offline"
         details = f"{details}; disconnected: printer URI is not reachable"
+    paper_level_pct, toner_level_pct, ink_level_pct = _extract_consumable_levels(details)
     return DeviceSnapshot(
         status=status,
         printer_status=printer_status,
@@ -332,6 +407,9 @@ def read_device_snapshot(settings: AgentSettings) -> DeviceSnapshot:
         local_ip=local_ip,
         details=details,
         active_error=_active_error_from_status(printer_status, details),
+        paper_level_pct=paper_level_pct,
+        toner_level_pct=toner_level_pct,
+        ink_level_pct=ink_level_pct,
         uptime_seconds=uptime_seconds,
         boot_started_at=boot_started_at,
     )
