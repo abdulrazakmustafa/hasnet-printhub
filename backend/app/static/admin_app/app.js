@@ -1,6 +1,11 @@
 ﻿(function () {
   const API_BASE = `${window.location.origin}/api/v1`;
   const TOKEN_KEY = "hph_admin_token";
+  const PALETTE = {
+    blue: "#27235f",
+    white: "#fff",
+    orange: "#f47227",
+  };
   const $ = (id) => document.getElementById(id);
 
   const state = {
@@ -45,7 +50,7 @@
   ui.kioskPanels = document.querySelectorAll("[data-kiosk-panel]");
 
   const setTone = (el, tone) => {
-    el.style.color = tone === "bad" ? "#f47c20" : tone === "ok" ? "#7fa8ff" : "#b3c2ea";
+    el.style.color = tone === "bad" ? PALETTE.orange : PALETTE.white;
   };
   const setAuthStatus = (message, tone = "") => { ui.authStatus.textContent = message || ""; setTone(ui.authStatus, tone); };
   const setStatus = (message, tone = "") => { ui.status.textContent = message || ""; setTone(ui.status, tone); };
@@ -219,7 +224,7 @@
     const [cx, cy] = end.split(",");
     const area = `${points} ${w},${h} 0,${h}`;
     const gridLines = [16, 32, 48, 64, 80]
-      .map((y) => `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="rgba(151,166,209,0.12)" stroke-width="1"></line>`)
+      .map((y) => `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="rgba(255, 255, 255, 0.18)" stroke-width="1"></line>`)
       .join("");
     svg.innerHTML = `
       ${gridLines}
@@ -280,9 +285,9 @@
     pushTrend("uptime", s.avg_uptime_hours || 0);
     pushTrend("errors", s.total_error_events_24h || 0);
     pushTrend("alerts", s.total_active_alerts || 0);
-    drawTrend(ui.uptimeChart, state.chartHistory.uptime, "#26d1df");
-    drawTrend(ui.errorChart, state.chartHistory.errors, "#ff5f76");
-    drawTrend(ui.alertChart, state.chartHistory.alerts, "#1fd06f");
+    drawTrend(ui.uptimeChart, state.chartHistory.uptime, PALETTE.blue);
+    drawTrend(ui.errorChart, state.chartHistory.errors, PALETTE.orange);
+    drawTrend(ui.alertChart, state.chartHistory.alerts, PALETTE.white);
   }
 
   async function loadDevices() {
@@ -367,7 +372,6 @@
 
   function fillCX(config) {
     state.customerExperience = config || {};
-    const t = config.theme || {};
     const c = config.content || {};
     const f = config.flow || {};
     const o = config.operations || {};
@@ -383,8 +387,10 @@
     ui.cxChip1.value = chips[0] || "";
     ui.cxChip2.value = chips[1] || "";
     ui.cxChip3.value = chips[2] || "";
-    ui.cxBrandBlue.value = t.brand_blue || "#272365";
-    ui.cxBrandOrange.value = t.brand_orange || "#f47c20";
+    ui.cxBrandBlue.value = PALETTE.blue;
+    ui.cxBrandOrange.value = PALETTE.orange;
+    ui.cxBrandBlue.disabled = true;
+    ui.cxBrandOrange.disabled = true;
     ui.cxHidePaymentMethod.value = String(f.hide_payment_method !== false);
     ui.cxShowStepper.value = String(f.show_stepper !== false);
     ui.cxDefaultPaymentMethod.value = f.default_payment_method || "mpesa";
@@ -416,7 +422,7 @@
         support_phone: String(ui.cxSupportPhone.value || "").trim(),
       },
       chips: [ui.cxChip1.value, ui.cxChip2.value, ui.cxChip3.value].map((x) => String(x || "").trim()).filter(Boolean),
-      theme: { ...(state.customerExperience?.theme || {}), brand_blue: String(ui.cxBrandBlue.value || "").trim(), brand_orange: String(ui.cxBrandOrange.value || "").trim() },
+      theme: { ...(state.customerExperience?.theme || {}), brand_blue: PALETTE.blue, brand_orange: PALETTE.orange },
       flow: { ...(state.customerExperience?.flow || {}), hide_payment_method: boolVal(ui.cxHidePaymentMethod.value), show_stepper: boolVal(ui.cxShowStepper.value), default_payment_method: String(ui.cxDefaultPaymentMethod.value || "mpesa").toLowerCase() },
       operations: { ...(state.customerExperience?.operations || {}), uploads_enabled: boolVal(ui.cxUploadsEnabled.value), payments_enabled: boolVal(ui.cxPaymentsEnabled.value), pause_reason: String(ui.cxPauseReason.value || "").trim(), printer_unready_message: String(ui.cxPrinterUnreadyMessage.value || "").trim() },
       hotspot: { ...(state.customerExperience?.hotspot || {}), enabled: boolVal(ui.cxHotspotEnabled.value), ssid: String(ui.cxHotspotSsid.value || "").trim(), passphrase: hotspotPassphrase, wifi_security: hotspotSecurity, country: String(ui.cxHotspotCountry.value || "TZ").toUpperCase(), channel: Number(ui.cxHotspotChannel.value || 6) },

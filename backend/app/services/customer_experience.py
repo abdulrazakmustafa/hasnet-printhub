@@ -30,14 +30,14 @@ DEFAULT_CUSTOMER_EXPERIENCE_CONFIG: dict[str, Any] = {
     "active_device_code": "pi-kiosk-001",
     "site_strip_text": "Driven by Innovation, Powered by Engineering! Enginnovation",
     "theme": {
-        "brand_blue": "#272365",
-        "brand_blue_2": "#1a2d6e",
-        "brand_orange": "#f47c20",
-        "brand_orange_2": "#f47c20",
-        "paper": "#f4f8ff",
-        "surface": "#ffffff",
-        "ink": "#173269",
-        "ink_soft": "#3f5f98",
+        "brand_blue": "#27235f",
+        "brand_blue_2": "#27235f",
+        "brand_orange": "#f47227",
+        "brand_orange_2": "#f47227",
+        "paper": "#fff",
+        "surface": "#fff",
+        "ink": "#27235f",
+        "ink_soft": "#27235f",
     },
     "content": {
         "brand_title": "Hasnet PrintHub",
@@ -92,6 +92,17 @@ DEFAULT_CUSTOMER_EXPERIENCE_CONFIG: dict[str, Any] = {
     },
 }
 
+_LOCKED_THEME_COLORS: dict[str, str] = {
+    "brand_blue": "#27235f",
+    "brand_blue_2": "#27235f",
+    "brand_orange": "#f47227",
+    "brand_orange_2": "#f47227",
+    "paper": "#fff",
+    "surface": "#fff",
+    "ink": "#27235f",
+    "ink_soft": "#27235f",
+}
+
 
 def _safe_dict(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
@@ -114,15 +125,6 @@ def _safe_text(value: object, *, default: str = "", max_len: int = 400) -> str:
     if not text:
         return default
     return text[:max_len]
-
-
-def _safe_hex_color(value: object, *, fallback: str) -> str:
-    candidate = str(value or "").strip()
-    if len(candidate) == 7 and candidate.startswith("#"):
-        is_hex = all(ch in "0123456789abcdefABCDEF" for ch in candidate[1:])
-        if is_hex:
-            return candidate
-    return fallback
 
 
 def _safe_ipv4(value: object, *, fallback: str) -> str:
@@ -177,7 +179,8 @@ def sanitize_customer_experience_config(payload: dict[str, Any] | None) -> dict[
 
     source_theme = _safe_dict(payload.get("theme"))
     for key, fallback in defaults["theme"].items():
-        out["theme"][key] = _safe_hex_color(source_theme.get(key), fallback=fallback)
+        _ = source_theme.get(key)
+        out["theme"][key] = _LOCKED_THEME_COLORS.get(key, fallback)
 
     source_content = _safe_dict(payload.get("content"))
     out["content"]["brand_title"] = _safe_text(

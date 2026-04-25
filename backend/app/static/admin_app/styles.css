@@ -1,16 +1,16 @@
 ﻿@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
 
 :root {
-  --bg: #07173b;
-  --bg-2: #0d2458;
-  --panel: #0f2a66;
-  --panel-2: #16387d;
-  --line: #2d57a8;
-  --line-soft: #3e6fcb;
-  --text: #f3f7ff;
-  --text-dim: #b8c9ec;
-  --blue: #1f4fbf;
-  --orange: #f47c20;
+  --bg: #27235f;
+  --bg-2: #27235f;
+  --panel: #27235f;
+  --panel-2: #27235f;
+  --line: #27235f;
+  --line-soft: #27235f;
+  --text: #fff;
+  --text-dim: #fff;
+  --blue: #27235f;
+  --orange: #f47227;
 }
 
 * {
@@ -67,11 +67,11 @@ body {
 }
 
 .auth-card {
-  background: #0f285f;
+  background: #27235f;
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 0.9rem;
-  box-shadow: 0 16px 32px rgba(10, 24, 58, 0.32);
+  box-shadow: 0 16px 32px rgba(39, 35, 95, 0.32);
 }
 
 .auth-switch {
@@ -102,7 +102,7 @@ select {
   width: 100%;
   border: 1px solid var(--line-soft);
   border-radius: 9px;
-  background: #060a14;
+  background: #27235f;
   color: var(--text);
   padding: 0.58rem 0.7rem;
 }
@@ -110,8 +110,8 @@ select {
 input:focus,
 select:focus {
   outline: none;
-  border-color: rgba(47, 103, 255, 0.8);
-  box-shadow: 0 0 0 2px rgba(47, 103, 255, 0.2);
+  border-color: rgba(39, 35, 95, 0.8);
+  box-shadow: 0 0 0 2px rgba(39, 35, 95, 0.2);
 }
 
 button {
@@ -119,24 +119,24 @@ button {
   border-radius: 9px;
   padding: 0.5rem 0.72rem;
   background: var(--blue);
-  color: #f5f8ff;
+  color: #fff;
   font-weight: 700;
   cursor: pointer;
   font-size: 0.86rem;
 }
 
 button:hover {
-  background: #2f63d8;
+  background: #27235f;
 }
 
 button.ghost {
-  background: #123373;
+  background: #27235f;
   border-color: var(--line-soft);
-  color: #e8f0ff;
+  color: #fff;
 }
 
 button.danger {
-  background: #d83d55;
+  background: #f47227;
 }
 
 button.full {
@@ -150,8 +150,8 @@ button.full {
 }
 
 .sidebar {
-  border-right: 1px solid #151d32;
-  background: #081c47;
+  border-right: 1px solid #27235f;
+  background: #27235f;
   display: flex;
   flex-direction: column;
   padding: 0.8rem 0.6rem;
@@ -162,7 +162,7 @@ button.full {
   align-items: center;
   gap: 0.56rem;
   padding: 0.2rem 0.3rem 0.9rem;
-  border-bottom: 1px solid #131a2f;
+  border-bottom: 1px solid #27235f;
 }
 
 .brand-logo {
@@ -178,7 +178,7 @@ button.full {
 
 .menu-heading {
   margin: 0.7rem 0.35rem 0.4rem;
-  color: #7382a7;
+  color: #fff;
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -194,15 +194,15 @@ button.full {
   text-align: left;
   background: transparent;
   border: 1px solid transparent;
-  color: #a7b5d9;
+  color: #fff;
   font-weight: 600;
   font-size: 0.83rem;
 }
 
 .tab.active {
-  color: #e6ecff;
-  background: rgba(47, 103, 255, 0.14);
-  border-color: rgba(47, 103, 255, 0.36);
+  color: #fff;
+  background: rgba(39, 35, 95, 0.14);
+  border-color: rgba(39, 35, 95, 0.36);
 }
 
 .icon {
@@ -211,13 +211,13 @@ button.full {
 
 .sidebar-footer {
   margin-top: auto;
-  border-top: 1px solid #131a2f;
+  border-top: 1px solid #27235f;
   padding-top: 0.8rem;
 }
 
 .sidebar-footer p {
   margin: 0 0 0.52rem;
-  color: #9aa8c8;
+  color: #fff;
   font-size: 0.76rem;
 }
 
@@ -228,7 +228,7 @@ button.full {
 .topbar {
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #0d255c;
+  background: #27235f;
   padding: 0.8rem;
   display: flex;
   justify-content: space-between;
@@ -274,10 +274,10 @@ button.full {
 }
 
 .kpi {
-  border: 1px solid #1d2741;
+  border: 1px solid #27235f;
   border-radius: 12px;
   padding: 0.6rem;
-  background: #0d255c;
+  background: #27235f;
   position: relative;
   overflow: hidden;
 }
@@ -306,9 +306,9 @@ button.full {
 
 .card {
   margin-top: 0.68rem;
-  border: 1px solid #1d2741;
+  border: 1px solid #27235f;
   border-radius: 14px;
-  background: #0c2255;
+  background: #27235f;
   padding: 0.78rem;
 }
 
@@ -393,13 +393,13 @@ th,
 td {
   padding: 0.52rem 0.45rem;
   text-align: left;
-  border-bottom: 1px solid #1a243e;
+  border-bottom: 1px solid #27235f;
   font-size: 0.79rem;
 }
 
 th {
-  color: #93a2c8;
-  background: rgba(20, 29, 51, 0.9);
+  color: #fff;
+  background: rgba(39, 35, 95, 0.9);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 0.66rem;
@@ -409,25 +409,25 @@ th {
   display: inline-block;
   padding: 0.16rem 0.45rem;
   border-radius: 999px;
-  border: 1px solid #2a3658;
+  border: 1px solid #27235f;
   font-size: 0.7rem;
   font-weight: 700;
-  color: #d5dff9;
+  color: #fff;
 }
 
 .chip.ok {
-  border-color: rgba(42, 95, 209, 0.7);
-  color: #9bc0ff;
+  border-color: rgba(39, 35, 95, 0.7);
+  color: #fff;
 }
 
 .chip.warn {
-  border-color: rgba(244, 124, 32, 0.7);
-  color: #ffcb9f;
+  border-color: rgba(244, 114, 39, 0.7);
+  color: #f47227;
 }
 
 .chip.bad {
-  border-color: rgba(244, 124, 32, 0.9);
-  color: #ffb57d;
+  border-color: rgba(244, 114, 39, 0.9);
+  color: #f47227;
 }
 
 .chart-grid {
@@ -437,10 +437,10 @@ th {
 }
 
 .chart-card {
-  border: 1px solid #1f2b49;
+  border: 1px solid #27235f;
   border-radius: 12px;
   padding: 0.45rem;
-  background: #0c2255;
+  background: #27235f;
 }
 
 .chart-card p {
@@ -462,10 +462,10 @@ th {
 }
 
 .monitor-card {
-  border: 1px solid #1f2b49;
+  border: 1px solid #27235f;
   border-radius: 11px;
   padding: 0.54rem;
-  background: #0c2255;
+  background: #27235f;
 }
 
 .monitor-title {
@@ -483,11 +483,11 @@ th {
 }
 
 .preview {
-  border: 1px solid #1f2b49;
+  border: 1px solid #27235f;
   border-radius: 10px;
-  background: rgba(12, 18, 33, 0.78);
+  background: rgba(39, 35, 95, 0.78);
   padding: 0.58rem;
-  color: #c1cdec;
+  color: #fff;
   font-size: 0.8rem;
 }
 
@@ -498,14 +498,14 @@ th {
 }
 
 .subtab {
-  background: rgba(19, 27, 47, 0.9);
-  border: 1px solid #2a3658;
-  color: #c8d3f4;
+  background: rgba(39, 35, 95, 0.9);
+  border: 1px solid #27235f;
+  color: #fff;
 }
 
 .subtab.active {
-  border-color: rgba(47, 103, 255, 0.5);
-  background: rgba(47, 103, 255, 0.14);
+  border-color: rgba(39, 35, 95, 0.5);
+  background: rgba(39, 35, 95, 0.14);
 }
 
 .kiosk-panel {
@@ -547,14 +547,14 @@ th {
 }
 
 .qr-box {
-  border: 1px solid #1f2b49;
+  border: 1px solid #27235f;
   border-radius: 12px;
   padding: 0.54rem;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.6rem;
   align-items: start;
-  background: rgba(8, 12, 22, 0.9);
+  background: rgba(39, 35, 95, 0.9);
 }
 
 .qr-box img {
@@ -573,14 +573,14 @@ th {
 
 .qr-item figcaption {
   font-size: 0.78rem;
-  color: #b7c4e6;
+  color: #fff;
   font-weight: 700;
 }
 
 .status {
   margin-top: 0.74rem;
   min-height: 1.2rem;
-  color: #b6c3e8;
+  color: #fff;
   font-weight: 700;
   font-size: 0.84rem;
 }
@@ -624,7 +624,7 @@ th {
 
   .sidebar {
     border-right: none;
-    border-bottom: 1px solid #151d32;
+    border-bottom: 1px solid #27235f;
   }
 
   .menu {
@@ -671,3 +671,4 @@ th {
     max-width: none;
   }
 }
+

@@ -4,6 +4,11 @@
   const DEFAULT_PAYMENT_METHOD = "mpesa";
   const POLL_INTERVAL_MS = 5000;
   const AVAILABILITY_REFRESH_MS = 12000;
+  const PALETTE = {
+    blue: "#27235f",
+    white: "#fff",
+    orange: "#f47227",
+  };
   const URL_PARAMS = new URLSearchParams(window.location.search);
   const QA_MODE = URL_PARAMS.get("qa") === "1";
   const STEP_LABELS = {
@@ -344,18 +349,17 @@
     return payload;
   }
 
-  function applyTheme(theme) {
+  function applyTheme(_theme) {
     const root = document.documentElement;
-    const map = {
-      brand_blue: "--brand-blue",
-      brand_blue_2: "--brand-blue-2",
-      brand_orange: "--brand-orange",
-      brand_orange_2: "--brand-orange-2",
-    };
-    Object.entries(map).forEach(([key, cssVar]) => {
-      const value = String(theme[key] || "").trim();
-      if (value) root.style.setProperty(cssVar, value);
-    });
+    root.style.setProperty("--brand-blue", PALETTE.blue);
+    root.style.setProperty("--brand-blue-2", PALETTE.blue);
+    root.style.setProperty("--brand-orange", PALETTE.orange);
+    root.style.setProperty("--brand-orange-2", PALETTE.orange);
+    root.style.setProperty("--paper", PALETTE.white);
+    root.style.setProperty("--surface", PALETTE.white);
+    root.style.setProperty("--ink", PALETTE.blue);
+    root.style.setProperty("--ink-soft", PALETTE.blue);
+    root.style.setProperty("--line", PALETTE.blue);
   }
 
   function renderTrustChips(chips) {
